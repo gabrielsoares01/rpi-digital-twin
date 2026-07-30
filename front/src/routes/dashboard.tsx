@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
 import {
 	CartesianGrid,
 	Legend,
@@ -11,7 +10,12 @@ import {
 	YAxis,
 } from "recharts";
 import { useSensorSocket } from "#/hooks/useSensorSocket";
-import type { SensorReading, SensorSocketStatus } from "#/services/websocket";
+import type {
+	Orientation,
+	SensorReading,
+	SensorSocketStatus,
+	Vector3,
+} from "#/interfaces/sensor";
 
 export const Route = createFileRoute("/dashboard")({ component: Dashboard });
 
@@ -22,10 +26,10 @@ const STATUS_LABEL: Record<SensorSocketStatus, string> = {
 	error: "Erro de conexão",
 };
 
+const CHART_COLORS = ["#2563eb", "#dc2626", "#16a34a"];
+
 function Dashboard() {
-	const { status, latestBySensor, history } = useSensorSocket();
-	const sensors = Array.from(latestBySensor.values());
-	const chartData = buildChartData(history);
+	const { status, latest, history } = useSensorSocket();
 
 	return (
 		<div className="p-8 space-y-6">
@@ -34,57 +38,46 @@ function Dashboard() {
 				<StatusBadge status={status} />
 			</div>
 
-			{sensors.length === 0 ? (
+			{!latest ? (
 				<p className="text-lg text-gray-500">
 					Aguardando leituras dos sensores...
 				</p>
 			) : (
-				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-					{sensors.map((reading) => (
-						<SensorCard key={reading.sensorId} reading={reading} />
-					))}
-				</div>
-			)}
+				<>
+					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+						<VectorCard title="Giroscópio" unit="°/s" vector={latest.gyro} />
+						<VectorCard title="Aceleração" unit="m/s²" vector={latest.accel} />
+						<VectorCard
+							title="Velocidade linear"
+							unit="m/s"
+							vector={latest.linear_velocity}
+						/>
+						<OrientationCard orientation={latest.orientation} />
+					</div>
 
-			{chartData.length > 0 && (
-				<div className="h-80 w-full">
-					<ResponsiveContainer width="100%" height="100%">
-						<LineChart data={chartData}>
-							<CartesianGrid strokeDasharray="3 3" />
-							<XAxis
-								dataKey="timestamp"
-								tickFormatter={(value: number) =>
-									new Date(value).toLocaleTimeString()
-								}
-							/>
-							<YAxis />
-							<Tooltip
-								labelFormatter={(value) =>
-									typeof value === "number"
-										? new Date(value).toLocaleTimeString()
-										: String(value)
-								}
-							/>
-							<Legend />
-							{Array.from(latestBySensor.keys()).map((sensorId, index) => (
-								<Line
-									key={sensorId}
-									type="monotone"
-									dataKey={sensorId}
-									stroke={CHART_COLORS[index % CHART_COLORS.length]}
-									connectNulls
-									dot={false}
-								/>
-							))}
-						</LineChart>
-					</ResponsiveContainer>
-				</div>
+					<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+						<VectorChart
+							title="Giroscópio (°/s)"
+							history={history}
+							field="gyro"
+						/>
+						<VectorChart
+							title="Aceleração (m/s²)"
+							history={history}
+							field="accel"
+						/>
+						<VectorChart
+							title="Velocidade linear (m/s)"
+							history={history}
+							field="linear_velocity"
+						/>
+						<OrientationChart history={history} />
+					</div>
+				</>
 			)}
 		</div>
 	);
 }
-
-const CHART_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed"];
 
 function StatusBadge({ status }: { status: SensorSocketStatus }) {
 	const color =
@@ -101,50 +94,156 @@ function StatusBadge({ status }: { status: SensorSocketStatus }) {
 	);
 }
 
-function SensorCard({ reading }: { reading: SensorReading }) {
-	const secondsAgo = useSecondsAgo(reading.timestamp);
-
+function VectorCard({
+	title,
+	unit,
+	vector,
+}: {
+	title: string;
+	unit: string;
+	vector: Vector3;
+}) {
 	return (
 		<div className="rounded-lg border border-gray-200 p-4 shadow-sm">
-			<div className="text-sm text-gray-500">{reading.sensorId}</div>
-			<div className="text-3xl font-bold">
-				{reading.value}
-				{reading.unit && (
-					<span className="text-lg font-normal ml-1">{reading.unit}</span>
-				)}
-			</div>
-			<div className="text-xs text-gray-400 mt-1">
-				última atualização há {secondsAgo}s
+			<div className="text-sm text-gray-500 mb-2">{title}</div>
+			<div className="space-y-1 text-sm font-mono">
+				<div>
+					x: {vector.x.toFixed(3)} {unit}
+				</div>
+				<div>
+					y: {vector.y.toFixed(3)} {unit}
+				</div>
+				<div>
+					z: {vector.z.toFixed(3)} {unit}
+				</div>
 			</div>
 		</div>
 	);
 }
 
-function useSecondsAgo(timestamp: number): number {
-	const [now, setNow] = useState(() => Date.now());
-
-	useEffect(() => {
-		const interval = setInterval(() => setNow(Date.now()), 1000);
-		return () => clearInterval(interval);
-	}, []);
-
-	return Math.max(0, Math.round((now - timestamp) / 1000));
+function OrientationCard({ orientation }: { orientation: Orientation }) {
+	return (
+		<div className="rounded-lg border border-gray-200 p-4 shadow-sm">
+			<div className="text-sm text-gray-500 mb-2">Orientação</div>
+			<div className="space-y-1 text-sm font-mono">
+				<div>roll: {orientation.roll.toFixed(2)}°</div>
+				<div>pitch: {orientation.pitch.toFixed(2)}°</div>
+				<div>yaw: {orientation.yaw.toFixed(2)}°</div>
+			</div>
+		</div>
+	);
 }
 
-function buildChartData(
-	history: SensorReading[],
-): Array<Record<string, number>> {
-	const byTimestamp = new Map<number, Record<string, number>>();
+function VectorChart({
+	title,
+	history,
+	field,
+}: {
+	title: string;
+	history: SensorReading[];
+	field: "gyro" | "accel" | "linear_velocity";
+}) {
+	const data = history.map((reading) => ({
+		timestamp: reading.timestamp * 1000,
+		x: reading[field].x,
+		y: reading[field].y,
+		z: reading[field].z,
+	}));
 
-	for (const reading of history) {
-		const point = byTimestamp.get(reading.timestamp) ?? {
-			timestamp: reading.timestamp,
-		};
-		point[reading.sensorId] = reading.value;
-		byTimestamp.set(reading.timestamp, point);
-	}
+	return (
+		<div className="h-64 w-full">
+			<h2 className="text-sm font-medium text-gray-600 mb-2">{title}</h2>
+			<ResponsiveContainer width="100%" height="100%">
+				<LineChart data={data}>
+					<CartesianGrid strokeDasharray="3 3" />
+					<XAxis
+						dataKey="timestamp"
+						tickFormatter={(value: number) =>
+							new Date(value).toLocaleTimeString()
+						}
+					/>
+					<YAxis />
+					<Tooltip
+						labelFormatter={(value) =>
+							typeof value === "number"
+								? new Date(value).toLocaleTimeString()
+								: String(value)
+						}
+					/>
+					<Legend />
+					<Line
+						type="monotone"
+						dataKey="x"
+						stroke={CHART_COLORS[0]}
+						dot={false}
+					/>
+					<Line
+						type="monotone"
+						dataKey="y"
+						stroke={CHART_COLORS[1]}
+						dot={false}
+					/>
+					<Line
+						type="monotone"
+						dataKey="z"
+						stroke={CHART_COLORS[2]}
+						dot={false}
+					/>
+				</LineChart>
+			</ResponsiveContainer>
+		</div>
+	);
+}
 
-	return Array.from(byTimestamp.values()).sort(
-		(a, b) => a.timestamp - b.timestamp,
+function OrientationChart({ history }: { history: SensorReading[] }) {
+	const data = history.map((reading) => ({
+		timestamp: reading.timestamp * 1000,
+		roll: reading.orientation.roll,
+		pitch: reading.orientation.pitch,
+		yaw: reading.orientation.yaw,
+	}));
+
+	return (
+		<div className="h-64 w-full">
+			<h2 className="text-sm font-medium text-gray-600 mb-2">Orientação (°)</h2>
+			<ResponsiveContainer width="100%" height="100%">
+				<LineChart data={data}>
+					<CartesianGrid strokeDasharray="3 3" />
+					<XAxis
+						dataKey="timestamp"
+						tickFormatter={(value: number) =>
+							new Date(value).toLocaleTimeString()
+						}
+					/>
+					<YAxis />
+					<Tooltip
+						labelFormatter={(value) =>
+							typeof value === "number"
+								? new Date(value).toLocaleTimeString()
+								: String(value)
+						}
+					/>
+					<Legend />
+					<Line
+						type="monotone"
+						dataKey="roll"
+						stroke={CHART_COLORS[0]}
+						dot={false}
+					/>
+					<Line
+						type="monotone"
+						dataKey="pitch"
+						stroke={CHART_COLORS[1]}
+						dot={false}
+					/>
+					<Line
+						type="monotone"
+						dataKey="yaw"
+						stroke={CHART_COLORS[2]}
+						dot={false}
+					/>
+				</LineChart>
+			</ResponsiveContainer>
+		</div>
 	);
 }

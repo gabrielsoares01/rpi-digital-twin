@@ -1,44 +1,46 @@
 import { io, type Socket } from "socket.io-client";
-
-export type SensorReading = {
-	sensorId: string;
-	value: number;
-	unit?: string;
-	timestamp: number;
-};
-
-export type SensorSocketStatus = "connecting" | "open" | "closed" | "error";
-
-export type SensorSocketSnapshot = {
-	status: SensorSocketStatus;
-	latestBySensor: Map<string, SensorReading>;
-	history: SensorReading[];
-};
+import type {
+	Orientation,
+	SensorReading,
+	SensorSocketSnapshot,
+	SensorSocketStatus,
+	Vector3,
+} from "#/interfaces/sensor";
 
 const HISTORY_LIMIT = 50;
 const SENSOR_READING_EVENT = "sensor:reading";
 const RECONNECTION_DELAY_MS = 1000;
 const RECONNECTION_DELAY_MAX_MS = 30000;
 
-const MOCK_SENSORS: Array<{
-	sensorId: string;
-	unit: string;
-	base: number;
-	amplitude: number;
-}> = [
-	{ sensorId: "temp-1", unit: "°C", base: 24, amplitude: 3 },
-	{ sensorId: "humidity-1", unit: "%", base: 55, amplitude: 10 },
-	{ sensorId: "pressure-1", unit: "hPa", base: 1013, amplitude: 5 },
-];
+function isVector3(data: unknown): data is Vector3 {
+	if (typeof data !== "object" || data === null) return false;
+	const candidate = data as Record<string, unknown>;
+	return (
+		typeof candidate.x === "number" &&
+		typeof candidate.y === "number" &&
+		typeof candidate.z === "number"
+	);
+}
+
+function isOrientation(data: unknown): data is Orientation {
+	if (typeof data !== "object" || data === null) return false;
+	const candidate = data as Record<string, unknown>;
+	return (
+		typeof candidate.roll === "number" &&
+		typeof candidate.pitch === "number" &&
+		typeof candidate.yaw === "number"
+	);
+}
 
 function isSensorReading(data: unknown): data is SensorReading {
 	if (typeof data !== "object" || data === null) return false;
 	const candidate = data as Record<string, unknown>;
 	return (
-		typeof candidate.sensorId === "string" &&
-		typeof candidate.value === "number" &&
 		typeof candidate.timestamp === "number" &&
-		(candidate.unit === undefined || typeof candidate.unit === "string")
+		isVector3(candidate.gyro) &&
+		isVector3(candidate.accel) &&
+		isVector3(candidate.linear_velocity) &&
+		isOrientation(candidate.orientation)
 	);
 }
 
@@ -53,7 +55,7 @@ class RealSensorSocket implements SensorSocket {
 	private url: string;
 	private socket: Socket | null = null;
 	private status: SensorSocketStatus = "closed";
-	private latestBySensor = new Map<string, SensorReading>();
+	private latest: SensorReading | null = null;
 	private history: SensorReading[] = [];
 	private listeners = new Set<() => void>();
 	private snapshot: SensorSocketSnapshot;
@@ -62,7 +64,7 @@ class RealSensorSocket implements SensorSocket {
 		this.url = url;
 		this.snapshot = {
 			status: this.status,
-			latestBySensor: this.latestBySensor,
+			latest: this.latest,
 			history: this.history,
 		};
 	}
@@ -116,7 +118,7 @@ class RealSensorSocket implements SensorSocket {
 			return;
 		}
 
-		this.latestBySensor.set(raw.sensorId, raw);
+		this.latest = raw;
 		this.history = [...this.history, raw].slice(-HISTORY_LIMIT);
 		this.notify();
 	}
@@ -129,7 +131,7 @@ class RealSensorSocket implements SensorSocket {
 	private notify(): void {
 		this.snapshot = {
 			status: this.status,
-			latestBySensor: this.latestBySensor,
+			latest: this.latest,
 			history: this.history,
 		};
 		for (const listener of this.listeners) listener();
@@ -138,13 +140,13 @@ class RealSensorSocket implements SensorSocket {
 
 class MockSensorSocket implements SensorSocket {
 	private status: SensorSocketStatus = "closed";
-	private latestBySensor = new Map<string, SensorReading>();
+	private latest: SensorReading | null = null;
 	private history: SensorReading[] = [];
 	private listeners = new Set<() => void>();
 	private intervalId: ReturnType<typeof setInterval> | null = null;
 	private snapshot: SensorSocketSnapshot = {
 		status: this.status,
-		latestBySensor: this.latestBySensor,
+		latest: this.latest,
 		history: this.history,
 	};
 
@@ -174,17 +176,19 @@ class MockSensorSocket implements SensorSocket {
 	}
 
 	private emitReading(): void {
-		const sensor =
-			MOCK_SENSORS[Math.floor(Math.random() * MOCK_SENSORS.length)];
+		const jitter = () => Number((Math.random() - 0.5).toFixed(3));
 		const reading: SensorReading = {
-			sensorId: sensor.sensorId,
-			value: Number(
-				(sensor.base + (Math.random() - 0.5) * 2 * sensor.amplitude).toFixed(2),
-			),
-			unit: sensor.unit,
-			timestamp: Date.now(),
+			timestamp: Date.now() / 1000,
+			gyro: { x: jitter() * 0.3, y: jitter() * 0.3, z: jitter() * 0.3 },
+			accel: { x: jitter() * 0.2, y: jitter() * 0.2, z: 9.81 + jitter() * 0.1 },
+			linear_velocity: { x: jitter(), y: jitter(), z: jitter() * 0.1 },
+			orientation: {
+				roll: jitter() * 5,
+				pitch: jitter() * 5,
+				yaw: (Date.now() / 100) % 360,
+			},
 		};
-		this.latestBySensor.set(reading.sensorId, reading);
+		this.latest = reading;
 		this.history = [...this.history, reading].slice(-HISTORY_LIMIT);
 		this.notify();
 	}
@@ -197,7 +201,7 @@ class MockSensorSocket implements SensorSocket {
 	private notify(): void {
 		this.snapshot = {
 			status: this.status,
-			latestBySensor: this.latestBySensor,
+			latest: this.latest,
 			history: this.history,
 		};
 		for (const listener of this.listeners) listener();

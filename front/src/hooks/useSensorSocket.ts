@@ -1,12 +1,10 @@
 import { useEffect, useSyncExternalStore } from "react";
-import {
-	getSensorSocket,
-	type SensorSocketSnapshot,
-} from "#/services/websocket";
+import type { SensorSocketSnapshot } from "#/interfaces/sensor";
+import { getSensorSocket } from "#/services/websocket";
 
 const SERVER_SNAPSHOT: SensorSocketSnapshot = {
 	status: "closed",
-	latestBySensor: new Map(),
+	latest: null,
 	history: [],
 };
 
