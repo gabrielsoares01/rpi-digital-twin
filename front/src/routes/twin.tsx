@@ -30,7 +30,7 @@ function TwinPage() {
 		: 0;
 
 	return (
-		<div className="relative w-screen h-screen overflow-hidden bg-[#0a0a1a]">
+		<div className="relative w-full h-screen overflow-hidden bg-[#0a0a1a]">
 			{/* 3D Scene — lazy loaded (Three.js needs browser APIs) */}
 			<Suspense fallback={<LoadingFallback />}>
 				<TwinScene
