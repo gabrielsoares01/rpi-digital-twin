@@ -26,20 +26,24 @@ const STATUS_LABEL: Record<SensorSocketStatus, string> = {
 	error: "Erro de conexão",
 };
 
-const CHART_COLORS = ["#2563eb", "#dc2626", "#16a34a"];
+const CHART_COLORS = ["#60a5fa", "#f87171", "#4ade80"];
+const GRID_COLOR = "#1f2937";
+const AXIS_COLOR = "#64748b";
 
 function Dashboard() {
 	const { status, latest, history } = useSensorSocket();
 
 	return (
-		<div className="p-8 space-y-6">
+		<div className="min-h-screen bg-slate-950 text-slate-100 p-8 space-y-6">
 			<div className="flex items-center justify-between">
-				<h1 className="text-4xl font-bold">Dashboard</h1>
+				<h1 className="text-3xl font-semibold tracking-tight text-white">
+					Dashboard
+				</h1>
 				<StatusBadge status={status} />
 			</div>
 
 			{!latest ? (
-				<p className="text-lg text-gray-500">
+				<p className="text-lg text-slate-400">
 					Aguardando leituras dos sensores...
 				</p>
 			) : (
@@ -82,10 +86,10 @@ function Dashboard() {
 function StatusBadge({ status }: { status: SensorSocketStatus }) {
 	const color =
 		status === "open"
-			? "bg-green-100 text-green-800"
+			? "bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30"
 			: status === "connecting"
-				? "bg-yellow-100 text-yellow-800"
-				: "bg-red-100 text-red-800";
+				? "bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/30"
+				: "bg-red-500/10 text-red-400 ring-1 ring-red-500/30";
 
 	return (
 		<span className={`px-3 py-1 rounded-full text-sm font-medium ${color}`}>
@@ -104,9 +108,9 @@ function VectorCard({
 	vector: Vector3;
 }) {
 	return (
-		<div className="rounded-lg border border-gray-200 p-4 shadow-sm">
-			<div className="text-sm text-gray-500 mb-2">{title}</div>
-			<div className="space-y-1 text-sm font-mono">
+		<div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 shadow-sm">
+			<div className="text-sm text-slate-400 mb-2">{title}</div>
+			<div className="space-y-1 text-sm font-mono text-slate-200">
 				<div>
 					x: {vector.x.toFixed(3)} {unit}
 				</div>
@@ -123,9 +127,9 @@ function VectorCard({
 
 function OrientationCard({ orientation }: { orientation: Orientation }) {
 	return (
-		<div className="rounded-lg border border-gray-200 p-4 shadow-sm">
-			<div className="text-sm text-gray-500 mb-2">Orientação</div>
-			<div className="space-y-1 text-sm font-mono">
+		<div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 shadow-sm">
+			<div className="text-sm text-slate-400 mb-2">Orientação</div>
+			<div className="space-y-1 text-sm font-mono text-slate-200">
 				<div>roll: {orientation.roll.toFixed(2)}°</div>
 				<div>pitch: {orientation.pitch.toFixed(2)}°</div>
 				<div>yaw: {orientation.yaw.toFixed(2)}°</div>
@@ -152,25 +156,37 @@ function VectorChart({
 
 	return (
 		<div className="h-64 w-full">
-			<h2 className="text-sm font-medium text-gray-600 mb-2">{title}</h2>
+			<h2 className="text-sm font-medium text-slate-300 mb-2">{title}</h2>
 			<ResponsiveContainer width="100%" height="100%">
 				<LineChart data={data}>
-					<CartesianGrid strokeDasharray="3 3" />
+					<CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} />
 					<XAxis
 						dataKey="timestamp"
 						tickFormatter={(value: number) =>
 							new Date(value).toLocaleTimeString()
 						}
+						stroke={AXIS_COLOR}
+						tick={{ fill: AXIS_COLOR, fontSize: 12 }}
 					/>
-					<YAxis />
+					<YAxis
+						stroke={AXIS_COLOR}
+						tick={{ fill: AXIS_COLOR, fontSize: 12 }}
+					/>
 					<Tooltip
 						labelFormatter={(value) =>
 							typeof value === "number"
 								? new Date(value).toLocaleTimeString()
 								: String(value)
 						}
+						contentStyle={{
+							backgroundColor: "#0f172a",
+							border: "1px solid #1f2937",
+							borderRadius: 8,
+							color: "#e2e8f0",
+						}}
+						labelStyle={{ color: "#94a3b8" }}
 					/>
-					<Legend />
+					<Legend wrapperStyle={{ color: "#94a3b8", fontSize: 12 }} />
 					<Line
 						type="monotone"
 						dataKey="x"
@@ -205,25 +221,39 @@ function OrientationChart({ history }: { history: SensorReading[] }) {
 
 	return (
 		<div className="h-64 w-full">
-			<h2 className="text-sm font-medium text-gray-600 mb-2">Orientação (°)</h2>
+			<h2 className="text-sm font-medium text-slate-300 mb-2">
+				Orientação (°)
+			</h2>
 			<ResponsiveContainer width="100%" height="100%">
 				<LineChart data={data}>
-					<CartesianGrid strokeDasharray="3 3" />
+					<CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} />
 					<XAxis
 						dataKey="timestamp"
 						tickFormatter={(value: number) =>
 							new Date(value).toLocaleTimeString()
 						}
+						stroke={AXIS_COLOR}
+						tick={{ fill: AXIS_COLOR, fontSize: 12 }}
 					/>
-					<YAxis />
+					<YAxis
+						stroke={AXIS_COLOR}
+						tick={{ fill: AXIS_COLOR, fontSize: 12 }}
+					/>
 					<Tooltip
 						labelFormatter={(value) =>
 							typeof value === "number"
 								? new Date(value).toLocaleTimeString()
 								: String(value)
 						}
+						contentStyle={{
+							backgroundColor: "#0f172a",
+							border: "1px solid #1f2937",
+							borderRadius: 8,
+							color: "#e2e8f0",
+						}}
+						labelStyle={{ color: "#94a3b8" }}
 					/>
-					<Legend />
+					<Legend wrapperStyle={{ color: "#94a3b8", fontSize: 12 }} />
 					<Line
 						type="monotone"
 						dataKey="roll"
