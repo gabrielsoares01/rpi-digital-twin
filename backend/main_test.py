@@ -3,7 +3,7 @@ main_test.py
 ------------
 Script de teste isolado para o backend.
 Lê os dados do MPU6050, calcula a orientação e velocidade, 
-e imprime os resultados no terminal (sem necessidade de WebSocket).
+e imprime os resultados (incluindo aceleração e giroscópio) no terminal.
 
 Para rodar:
     python3 main_test.py
@@ -20,7 +20,7 @@ from velocity_estimator import VelocityEstimator
 # ----------------------------------------------------------------------
 LOOP_FREQUENCY_HZ = 50          # Frequência de processamento (50 Hz)
 CALIBRATION_SAMPLES = 200       # Amostras para calibração inicial
-PRINT_MODE = "json"             # Escolha "line" para linha única ou "json" para bloco JSON
+PRINT_MODE = "line"             # Escolha "line" para linha única ou "json" para bloco JSON
 
 
 def main():
@@ -79,17 +79,16 @@ def main():
             frame_count += 1
             if frame_count % 10 == 0:
                 if PRINT_MODE == "json":
-                    # Exibe o JSON bruto e formatado
+                    # Exibe o JSON bruto e formatado (já contém accel e gyro)
                     print(json.dumps(payload, indent=2))
                 else:
-                    # Exibe em linha única (sobrescreve a linha anterior no terminal)
+                    # Exibe em linha única incluindo Aceleração, Giroscópio, Orientação e Velocidade
                     print(
-                        f"\r[IMU TEST] "
-                        f"Roll: {orientation['roll']:6.1f}° | "
-                        f"Pitch: {orientation['pitch']:6.1f}° | "
-                        f"Yaw: {orientation['yaw']:6.1f}° | "
-                        f"Vx: {linear_velocity['x']:6.2f} m/s | "
-                        f"Vy: {linear_velocity['y']:6.2f} m/s",
+                        f"\r[IMU] "
+                        f"Acc(m/s²): X:{accel['x']:5.2f} Y:{accel['y']:5.2f} Z:{accel['z']:5.2f} | "
+                        f"Giro(°/s): X:{gyro['x']:5.1f} Y:{gyro['y']:5.1f} Z:{gyro['z']:5.1f} | "
+                        f"Roll:{orientation['roll']:5.1f}° Pitch:{orientation['pitch']:5.1f}° Yaw:{orientation['yaw']:5.1f}° | "
+                        f"Vx:{linear_velocity['x']:5.2f}m/s Vy:{linear_velocity['y']:5.2f}m/s Vz:{linear_velocity['z']:5.2f}m/s",
                         end="",
                         flush=True
                     )
