@@ -8,9 +8,10 @@ import type {
 } from "#/interfaces/sensor";
 
 const HISTORY_LIMIT = 50;
-const SENSOR_READING_EVENT = "sensor:reading";
+const SENSOR_READING_EVENT = "telemetry";
 const RECONNECTION_DELAY_MS = 1000;
 const RECONNECTION_DELAY_MAX_MS = 30000;
+const BATCH_FLUSH_INTERVAL_MS = 50; // Buffer incoming 50Hz messages and flush to React subscribers at ~20Hz (50ms) to prevent UI/3D stuttering
 
 function isVector3(data: unknown): data is Vector3 {
 	if (typeof data !== "object" || data === null) return false;
@@ -57,6 +58,8 @@ class RealSensorSocket implements SensorSocket {
 	private status: SensorSocketStatus = "closed";
 	private latest: SensorReading | null = null;
 	private history: SensorReading[] = [];
+	private pendingBuffer: SensorReading[] = [];
+	private flushIntervalId: ReturnType<typeof setInterval> | null = null;
 	private listeners = new Set<() => void>();
 	private snapshot: SensorSocketSnapshot;
 
@@ -78,6 +81,7 @@ class RealSensorSocket implements SensorSocket {
 
 		this.socket.on("connect", () => {
 			this.setStatus("open");
+			this.startBufferFlusher();
 		});
 
 		this.socket.on(SENSOR_READING_EVENT, (payload: unknown) => {
@@ -89,6 +93,7 @@ class RealSensorSocket implements SensorSocket {
 		});
 
 		this.socket.on("disconnect", () => {
+			this.stopBufferFlusher();
 			this.setStatus("closed");
 		});
 
@@ -98,6 +103,7 @@ class RealSensorSocket implements SensorSocket {
 	}
 
 	disconnect(): void {
+		this.stopBufferFlusher();
 		this.socket?.disconnect();
 		this.socket = null;
 		this.setStatus("closed");
@@ -118,9 +124,31 @@ class RealSensorSocket implements SensorSocket {
 			return;
 		}
 
-		this.latest = raw;
-		this.history = [...this.history, raw].slice(-HISTORY_LIMIT);
-		this.notify();
+		// Buffer high-frequency telemetry messages
+		this.pendingBuffer.push(raw);
+	}
+
+	private startBufferFlusher(): void {
+		if (this.flushIntervalId) return;
+		this.flushIntervalId = setInterval(() => {
+			if (this.pendingBuffer.length === 0) return;
+
+			// Flush all buffered readings accumulated during the 50ms interval in a single batch
+			const batch = this.pendingBuffer;
+			this.pendingBuffer = [];
+
+			this.latest = batch[batch.length - 1];
+			this.history = [...this.history, ...batch].slice(-HISTORY_LIMIT);
+			this.notify();
+		}, BATCH_FLUSH_INTERVAL_MS);
+	}
+
+	private stopBufferFlusher(): void {
+		if (this.flushIntervalId) {
+			clearInterval(this.flushIntervalId);
+			this.flushIntervalId = null;
+		}
+		this.pendingBuffer = [];
 	}
 
 	private setStatus(status: SensorSocketStatus): void {
@@ -154,7 +182,7 @@ class MockSensorSocket implements SensorSocket {
 		this.setStatus("connecting");
 		setTimeout(() => {
 			this.setStatus("open");
-			this.intervalId = setInterval(() => this.emitReading(), 1000);
+			this.intervalId = setInterval(() => this.emitReading(), 100);
 		}, 300);
 	}
 
@@ -214,7 +242,7 @@ export function createSensorSocket(): SensorSocket {
 	const isMock = import.meta.env.VITE_WS_MOCK === "true";
 	if (isMock) return new MockSensorSocket();
 
-	const url = import.meta.env.VITE_WS_URL ?? "http://raspberrypi.local:8765";
+	const url = import.meta.env.VITE_WS_URL ?? "http://10.42.0.1:8765";
 	return new RealSensorSocket(url);
 }
 
