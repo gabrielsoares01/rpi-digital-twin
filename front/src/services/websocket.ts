@@ -11,7 +11,7 @@ const HISTORY_LIMIT = 50;
 const SENSOR_READING_EVENT = "telemetry";
 const RECONNECTION_DELAY_MS = 1000;
 const RECONNECTION_DELAY_MAX_MS = 30000;
-const BATCH_FLUSH_INTERVAL_MS = 50; // Buffer incoming 50Hz messages and flush to React subscribers at ~20Hz (50ms) to prevent UI/3D stuttering
+const BATCH_FLUSH_INTERVAL_MS = 100; // Buffer incoming 50Hz messages and flush to React subscribers at ~10Hz (100ms) to prevent UI/3D stuttering
 
 function isVector3(data: unknown): data is Vector3 {
 	if (typeof data !== "object" || data === null) return false;
