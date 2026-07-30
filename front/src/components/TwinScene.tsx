@@ -60,9 +60,20 @@ export default function TwinScene({
 		: currentPosition;
 	const effectiveTrail = lockCenter ? [] : trail;
 
+	// Distance from origin [0,0]
+	const distFromOrigin = Math.hypot(
+		effectivePosition[0],
+		effectivePosition[2],
+	);
+	// Grid starts with 1000cm (10m) radius and grows in 1000cm steps whenever robot nears the border
+	const gridRadius = Math.max(
+		1000,
+		Math.ceil((distFromOrigin + 500) / 1000) * 1000,
+	);
+
 	return (
 		<Canvas
-			camera={{ position: [100, 80, 100], fov: 50, near: 0.1, far: 10000 }}
+			camera={{ position: [100, 80, 100], fov: 50, near: 0.1, far: 20000 }}
 			style={{ width: "100%", height: "100%", background: "#0a0a1a" }}
 		>
 			{/* Lighting */}
@@ -70,9 +81,9 @@ export default function TwinScene({
 			<directionalLight position={[50, 100, 50]} intensity={0.8} />
 			<pointLight position={[0, 50, 0]} intensity={0.3} color="#38bdf8" />
 
-			{/* Ground grid — 10cm cells, 50cm sections, extends infinitely around robot position */}
+			{/* Ground grid — Fixed at world origin [0,0,0], grows when robot crosses border */}
 			<Grid
-				position={[effectivePosition[0], 0, effectivePosition[2]]}
+				position={[0, 0, 0]}
 				infiniteGrid
 				cellSize={10}
 				cellColor="#1e3a5f"
@@ -80,7 +91,7 @@ export default function TwinScene({
 				sectionSize={50}
 				sectionColor="#2563eb"
 				sectionThickness={1}
-				fadeDistance={2500}
+				fadeDistance={gridRadius}
 				fadeStrength={1}
 			/>
 
@@ -103,7 +114,7 @@ export default function TwinScene({
 			</GizmoHelper>
 
 			{/* Atmospheric fog */}
-			<fog attach="fog" args={["#0a0a1a", 1000, 4000]} />
+			<fog attach="fog" args={["#0a0a1a", gridRadius * 0.8, gridRadius * 2.5]} />
 		</Canvas>
 	);
 }
