@@ -30,6 +30,13 @@ function TwinPage() {
 			)
 		: 0;
 
+	const handleToggleLockCenter = () => {
+		if (lockCenter) {
+			reset();
+		}
+		setLockCenter((prev) => !prev);
+	};
+
 	return (
 		<div className="relative w-full h-screen overflow-hidden bg-[#0a0a1a]">
 			{/* 3D Scene — lazy loaded (Three.js needs browser APIs) */}
@@ -87,7 +94,7 @@ function TwinPage() {
 					</button>
 					<button
 						type="button"
-						onClick={() => setLockCenter((l) => !l)}
+						onClick={handleToggleLockCenter}
 						className={`backdrop-blur-md rounded-lg px-4 py-2 border text-sm font-medium transition-colors cursor-pointer ${
 							lockCenter
 								? "bg-purple-500/20 border-purple-400/30 text-purple-300 hover:bg-purple-500/30"
