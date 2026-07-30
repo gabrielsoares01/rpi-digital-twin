@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
 	CartesianGrid,
@@ -143,12 +144,16 @@ function VectorChart({
 	history: SensorReading[];
 	field: "gyro" | "accel" | "linear_velocity";
 }) {
-	const data = history.map((reading) => ({
-		timestamp: reading.timestamp * 1000,
-		x: reading[field].x,
-		y: reading[field].y,
-		z: reading[field].z,
-	}));
+	const data = useMemo(
+		() =>
+			history.map((reading) => ({
+				timestamp: reading.timestamp * 1000,
+				x: reading[field].x,
+				y: reading[field].y,
+				z: reading[field].z,
+			})),
+		[history, field],
+	);
 
 	return (
 		<div className="h-64 w-full">
@@ -176,18 +181,21 @@ function VectorChart({
 						dataKey="x"
 						stroke={CHART_COLORS[0]}
 						dot={false}
+						isAnimationActive={false}
 					/>
 					<Line
 						type="monotone"
 						dataKey="y"
 						stroke={CHART_COLORS[1]}
 						dot={false}
+						isAnimationActive={false}
 					/>
 					<Line
 						type="monotone"
 						dataKey="z"
 						stroke={CHART_COLORS[2]}
 						dot={false}
+						isAnimationActive={false}
 					/>
 				</LineChart>
 			</ResponsiveContainer>
@@ -196,12 +204,16 @@ function VectorChart({
 }
 
 function OrientationChart({ history }: { history: SensorReading[] }) {
-	const data = history.map((reading) => ({
-		timestamp: reading.timestamp * 1000,
-		roll: reading.orientation.roll,
-		pitch: reading.orientation.pitch,
-		yaw: reading.orientation.yaw,
-	}));
+	const data = useMemo(
+		() =>
+			history.map((reading) => ({
+				timestamp: reading.timestamp * 1000,
+				roll: reading.orientation.roll,
+				pitch: reading.orientation.pitch,
+				yaw: reading.orientation.yaw,
+			})),
+		[history],
+	);
 
 	return (
 		<div className="h-64 w-full">
@@ -229,18 +241,21 @@ function OrientationChart({ history }: { history: SensorReading[] }) {
 						dataKey="roll"
 						stroke={CHART_COLORS[0]}
 						dot={false}
+						isAnimationActive={false}
 					/>
 					<Line
 						type="monotone"
 						dataKey="pitch"
 						stroke={CHART_COLORS[1]}
 						dot={false}
+						isAnimationActive={false}
 					/>
 					<Line
 						type="monotone"
 						dataKey="yaw"
 						stroke={CHART_COLORS[2]}
 						dot={false}
+						isAnimationActive={false}
 					/>
 				</LineChart>
 			</ResponsiveContainer>

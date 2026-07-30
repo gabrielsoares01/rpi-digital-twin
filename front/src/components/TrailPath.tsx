@@ -6,19 +6,22 @@ import type { TrackedPoint } from "#/hooks/usePositionTracker";
 const GREEN = new THREE.Color("#22c55e");
 const YELLOW = new THREE.Color("#eab308");
 const RED = new THREE.Color("#ef4444");
+// Reused across calls to avoid allocating a THREE.Color per trail point:
+// with a 500-point trail refreshed at 10Hz that was ~5000 allocations/sec,
+// which was frequent enough to cause periodic GC-related frame stutter.
+const scratchColor = new THREE.Color();
 
 function speedToColor(
 	speed: number,
 	maxSpeed: number,
 ): [number, number, number] {
 	const t = Math.min(speed / maxSpeed, 1);
-	const color = new THREE.Color();
 	if (t < 0.5) {
-		color.lerpColors(GREEN, YELLOW, t * 2);
+		scratchColor.lerpColors(GREEN, YELLOW, t * 2);
 	} else {
-		color.lerpColors(YELLOW, RED, (t - 0.5) * 2);
+		scratchColor.lerpColors(YELLOW, RED, (t - 0.5) * 2);
 	}
-	return [color.r, color.g, color.b];
+	return [scratchColor.r, scratchColor.g, scratchColor.b];
 }
 
 type Props = {
