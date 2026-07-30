@@ -13,6 +13,7 @@ function TwinPage() {
 	const { currentPosition, currentOrientation, trail, reset } =
 		usePositionTracker(latest);
 	const [followCamera, setFollowCamera] = useState(true);
+	const [lockCenter, setLockCenter] = useState(false);
 
 	const latestSpeed = latest
 		? Math.sqrt(
@@ -39,6 +40,7 @@ function TwinPage() {
 					trail={trail}
 					latestAccelMagnitude={latestAccelMag}
 					followCamera={followCamera}
+					lockCenter={lockCenter}
 				/>
 			</Suspense>
 
@@ -66,7 +68,9 @@ function TwinPage() {
 							</span>
 							<span className="text-white/50">Position</span>
 							<span className="text-white/90">
-								({currentPosition.map((v) => v.toFixed(1)).join(", ")}) cm
+								{lockCenter
+									? "(0.0, 0.0, 0.0) cm [Fixed]"
+									: `(${currentPosition.map((v) => v.toFixed(1)).join(", ")}) cm`}
 							</span>
 						</div>
 					)}
@@ -80,6 +84,17 @@ function TwinPage() {
 						className="backdrop-blur-md bg-black/40 rounded-lg px-4 py-2 border border-white/10 text-white text-sm font-medium hover:bg-white/10 active:bg-white/20 transition-colors cursor-pointer"
 					>
 						↺ Reset Trail
+					</button>
+					<button
+						type="button"
+						onClick={() => setLockCenter((l) => !l)}
+						className={`backdrop-blur-md rounded-lg px-4 py-2 border text-sm font-medium transition-colors cursor-pointer ${
+							lockCenter
+								? "bg-purple-500/20 border-purple-400/30 text-purple-300 hover:bg-purple-500/30"
+								: "bg-black/40 border-white/10 text-white/70 hover:bg-white/10"
+						}`}
+					>
+						🎯 {lockCenter ? "Center Locked" : "Lock Center"}
 					</button>
 					<button
 						type="button"

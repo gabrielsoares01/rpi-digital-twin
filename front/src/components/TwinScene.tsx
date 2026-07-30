@@ -17,6 +17,7 @@ type Props = {
 	trail: TrackedPoint[];
 	latestAccelMagnitude: number;
 	followCamera: boolean;
+	lockCenter: boolean;
 };
 
 function CameraController({
@@ -52,7 +53,13 @@ export default function TwinScene({
 	trail,
 	latestAccelMagnitude,
 	followCamera,
+	lockCenter,
 }: Props) {
+	const effectivePosition: [number, number, number] = lockCenter
+		? [0, 0, 0]
+		: currentPosition;
+	const effectiveTrail = lockCenter ? [] : trail;
+
 	return (
 		<Canvas
 			camera={{ position: [100, 80, 100], fov: 50, near: 0.1, far: 10000 }}
@@ -78,16 +85,16 @@ export default function TwinScene({
 
 			{/* Robot twin */}
 			<RobotTwin
-				position={currentPosition}
+				position={effectivePosition}
 				rotation={currentOrientation}
 				accelMagnitude={latestAccelMagnitude}
 			/>
 
 			{/* Movement trail */}
-			<TrailPath trail={trail} />
+			<TrailPath trail={effectiveTrail} />
 
 			{/* Camera */}
-			<CameraController target={currentPosition} follow={followCamera} />
+			<CameraController target={effectivePosition} follow={followCamera} />
 
 			{/* Axis gizmo in corner */}
 			<GizmoHelper alignment="bottom-left" margin={[80, 80]}>
