@@ -1,6 +1,7 @@
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
+import { Sidebar } from '#/components/Sidebar'
 
 import appCss from '../styles.css?url'
 
@@ -15,7 +16,7 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'TanStack Start Starter',
+        title: 'Raspberry Pi Digital Twin',
       },
     ],
     links: [
@@ -34,8 +35,11 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <head>
         <HeadContent />
       </head>
-      <body>
-        {children}
+      <body className="bg-slate-950 text-slate-100 min-h-screen antialiased flex selection:bg-cyan-500 selection:text-white">
+        <Sidebar />
+        <main className="flex-1 min-w-0 pl-16 min-h-screen">
+          {children}
+        </main>
         <TanStackDevtools
           config={{
             position: 'bottom-right',
