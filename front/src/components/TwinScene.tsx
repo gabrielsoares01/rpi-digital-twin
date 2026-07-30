@@ -70,8 +70,9 @@ export default function TwinScene({
 			<directionalLight position={[50, 100, 50]} intensity={0.8} />
 			<pointLight position={[0, 50, 0]} intensity={0.3} color="#38bdf8" />
 
-			{/* Ground grid — 10cm cells, 50cm sections */}
+			{/* Ground grid — 10cm cells, 50cm sections, extends infinitely around robot position */}
 			<Grid
+				position={[effectivePosition[0], 0, effectivePosition[2]]}
 				infiniteGrid
 				cellSize={10}
 				cellColor="#1e3a5f"
@@ -79,8 +80,8 @@ export default function TwinScene({
 				sectionSize={50}
 				sectionColor="#2563eb"
 				sectionThickness={1}
-				fadeDistance={400}
-				fadeStrength={1.5}
+				fadeDistance={2500}
+				fadeStrength={1}
 			/>
 
 			{/* Robot twin */}
@@ -102,7 +103,7 @@ export default function TwinScene({
 			</GizmoHelper>
 
 			{/* Atmospheric fog */}
-			<fog attach="fog" args={["#0a0a1a", 300, 900]} />
+			<fog attach="fog" args={["#0a0a1a", 1000, 4000]} />
 		</Canvas>
 	);
 }
