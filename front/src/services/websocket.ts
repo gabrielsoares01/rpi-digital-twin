@@ -66,6 +66,7 @@ class RealSensorSocket implements SensorSocket {
 	private listeners = new Set<() => void>();
 	private statusListeners = new Set<() => void>();
 	private snapshot: SensorSocketSnapshot;
+	private connectionCount = 0;
 
 	constructor(url: string) {
 		this.url = url;
@@ -77,6 +78,11 @@ class RealSensorSocket implements SensorSocket {
 	}
 
 	connect(): void {
+		this.connectionCount++;
+		if (this.socket || this.status === "connecting" || this.status === "open") {
+			return;
+		}
+
 		this.setStatus("connecting");
 		this.socket = io(this.url, {
 			reconnectionDelay: RECONNECTION_DELAY_MS,
@@ -107,6 +113,9 @@ class RealSensorSocket implements SensorSocket {
 	}
 
 	disconnect(): void {
+		this.connectionCount = Math.max(0, this.connectionCount - 1);
+		if (this.connectionCount > 0) return;
+
 		this.stopBufferFlusher();
 		this.socket?.disconnect();
 		this.socket = null;
@@ -199,17 +208,24 @@ class MockSensorSocket implements SensorSocket {
 		latest: this.latest,
 		history: this.history,
 	};
+	private connectionCount = 0;
 
 	connect(): void {
+		this.connectionCount++;
 		if (this.status === "open" || this.status === "connecting") return;
+
 		this.setStatus("connecting");
 		setTimeout(() => {
+			if (this.connectionCount === 0) return;
 			this.setStatus("open");
 			this.startGenerators();
 		}, 300);
 	}
 
 	disconnect(): void {
+		this.connectionCount = Math.max(0, this.connectionCount - 1);
+		if (this.connectionCount > 0) return;
+
 		this.stopGenerators();
 		this.setStatus("closed");
 	}
