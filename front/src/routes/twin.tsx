@@ -11,7 +11,7 @@ export const Route = createFileRoute("/twin")({ component: TwinPage });
 function TwinPage() {
 	const status = useSensorStatus();
 	const latest = useLatestTelemetry();
-	const { currentPosition, currentOrientation, trail, reset } =
+	const { currentPosition, currentOrientation, trailRef, trailVersion, reset } =
 		usePositionTracker(latest);
 	const [followCamera, setFollowCamera] = useState(true);
 	const [lockCenter, setLockCenter] = useState(false);
@@ -45,7 +45,8 @@ function TwinPage() {
 				<TwinScene
 					currentPosition={currentPosition}
 					currentOrientation={currentOrientation}
-					trail={trail}
+					trailRef={trailRef}
+					trailVersion={trailVersion}
 					latestAccelMagnitude={latestAccelMag}
 					followCamera={followCamera}
 					lockCenter={lockCenter}

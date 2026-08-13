@@ -55,12 +55,63 @@ export interface SensorSocket {
 	getStatus(): SensorSocketStatus;
 }
 
+/**
+ * Pre-allocated ring buffer to avoid any array spread/concat in the hot flush path.
+ * push() overwrites the oldest slot when full.
+ * toArray() materializes a chronological view — called only once per flush, not per subscriber.
+ */
+class RingBuffer<T> {
+	private buf: Array<T | undefined>;
+	private head = 0; // next write position
+	private _size = 0;
+	readonly capacity: number;
+
+	constructor(capacity: number) {
+		this.capacity = capacity;
+		this.buf = new Array<T | undefined>(capacity);
+	}
+
+	push(item: T): void {
+		this.buf[this.head] = item;
+		this.head = (this.head + 1) % this.capacity;
+		if (this._size < this.capacity) this._size++;
+	}
+
+	pushBatch(items: T[]): void {
+		for (let i = 0; i < items.length; i++) this.push(items[i]);
+	}
+
+	get size(): number {
+		return this._size;
+	}
+
+	/** Returns elements in insertion order (oldest first). */
+	toArray(): T[] {
+		if (this._size === 0) return [];
+		const out = new Array<T>(this._size);
+		if (this._size < this.capacity) {
+			for (let i = 0; i < this._size; i++) out[i] = this.buf[i] as T;
+		} else {
+			// Buffer full — oldest element is at this.head
+			for (let i = 0; i < this._size; i++) {
+				out[i] = this.buf[(this.head + i) % this.capacity] as T;
+			}
+		}
+		return out;
+	}
+
+	clear(): void {
+		this.head = 0;
+		this._size = 0;
+	}
+}
+
 class RealSensorSocket implements SensorSocket {
 	private url: string;
 	private socket: Socket | null = null;
 	private status: SensorSocketStatus = "closed";
 	private latest: SensorReading | null = null;
-	private history: SensorReading[] = [];
+	private historyRing = new RingBuffer<SensorReading>(HISTORY_LIMIT);
 	private pendingBuffer: SensorReading[] = [];
 	private flushIntervalId: ReturnType<typeof setInterval> | null = null;
 	private listeners = new Set<() => void>();
@@ -73,7 +124,7 @@ class RealSensorSocket implements SensorSocket {
 		this.snapshot = {
 			status: this.status,
 			latest: this.latest,
-			history: this.history,
+			history: [],
 		};
 	}
 
@@ -155,12 +206,11 @@ class RealSensorSocket implements SensorSocket {
 		this.flushIntervalId = setInterval(() => {
 			if (this.pendingBuffer.length === 0) return;
 
-			// Flush all buffered readings accumulated during the 50ms interval in a single batch
-			const batch = this.pendingBuffer;
-			this.pendingBuffer = [];
+			// Push batch into ring buffer, then truncate pendingBuffer in-place (no new array)
+			this.historyRing.pushBatch(this.pendingBuffer);
+			this.latest = this.pendingBuffer[this.pendingBuffer.length - 1];
+			this.pendingBuffer.length = 0;
 
-			this.latest = batch[batch.length - 1];
-			this.history = [...this.history, ...batch].slice(-HISTORY_LIMIT);
 			this.notify();
 		}, BATCH_FLUSH_INTERVAL_MS);
 	}
@@ -170,7 +220,7 @@ class RealSensorSocket implements SensorSocket {
 			clearInterval(this.flushIntervalId);
 			this.flushIntervalId = null;
 		}
-		this.pendingBuffer = [];
+		this.pendingBuffer.length = 0;
 	}
 
 	private setStatus(status: SensorSocketStatus): void {
@@ -188,7 +238,7 @@ class RealSensorSocket implements SensorSocket {
 		this.snapshot = {
 			status: this.status,
 			latest: this.latest,
-			history: this.history,
+			history: this.historyRing.toArray(),
 		};
 		for (const listener of this.listeners) listener();
 	}
@@ -197,7 +247,7 @@ class RealSensorSocket implements SensorSocket {
 class MockSensorSocket implements SensorSocket {
 	private status: SensorSocketStatus = "closed";
 	private latest: SensorReading | null = null;
-	private history: SensorReading[] = [];
+	private historyRing = new RingBuffer<SensorReading>(HISTORY_LIMIT);
 	private pendingBuffer: SensorReading[] = [];
 	private listeners = new Set<() => void>();
 	private statusListeners = new Set<() => void>();
@@ -205,8 +255,8 @@ class MockSensorSocket implements SensorSocket {
 	private flushIntervalId: ReturnType<typeof setInterval> | null = null;
 	private snapshot: SensorSocketSnapshot = {
 		status: this.status,
-		latest: this.latest,
-		history: this.history,
+		latest: null,
+		history: [],
 	};
 	private connectionCount = 0;
 
@@ -271,7 +321,8 @@ class MockSensorSocket implements SensorSocket {
 			clearInterval(this.flushIntervalId);
 			this.flushIntervalId = null;
 		}
-		this.pendingBuffer = [];
+		this.pendingBuffer.length = 0;
+		this.historyRing.clear();
 	}
 
 	private generateMockFrame(): void {
@@ -311,11 +362,10 @@ class MockSensorSocket implements SensorSocket {
 	private flushBuffer(): void {
 		if (this.pendingBuffer.length === 0) return;
 
-		const batch = this.pendingBuffer;
-		this.pendingBuffer = [];
+		this.historyRing.pushBatch(this.pendingBuffer);
+		this.latest = this.pendingBuffer[this.pendingBuffer.length - 1];
+		this.pendingBuffer.length = 0;
 
-		this.latest = batch[batch.length - 1];
-		this.history = [...this.history, ...batch].slice(-HISTORY_LIMIT);
 		this.notify();
 	}
 
@@ -334,7 +384,7 @@ class MockSensorSocket implements SensorSocket {
 		this.snapshot = {
 			status: this.status,
 			latest: this.latest,
-			history: this.history,
+			history: this.historyRing.toArray(),
 		};
 		for (const listener of this.listeners) listener();
 	}

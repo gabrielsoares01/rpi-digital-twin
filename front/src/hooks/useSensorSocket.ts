@@ -1,5 +1,5 @@
-import { useEffect, useSyncExternalStore } from "react";
-import type { SensorSocketSnapshot } from "#/interfaces/sensor";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import type { SensorReading, SensorSocketSnapshot } from "#/interfaces/sensor";
 import { getSensorSocket } from "#/services/websocket";
 
 const SERVER_SNAPSHOT: SensorSocketSnapshot = {
@@ -51,6 +51,36 @@ export function useSensorHistory() {
 		() => socket.getSnapshot().history,
 		() => [],
 	);
+}
+
+/**
+ * Like useSensorHistory but throttles React re-renders to at most `hz` times per second.
+ * Prevents Recharts ResponsiveContainer from triggering sync reflows on every 10Hz flush.
+ */
+export function useThrottledSensorHistory(hz = 4): SensorReading[] {
+	const socket = getSensorSocket();
+	const intervalMs = 1000 / hz;
+	const lastFlushRef = useRef(0);
+	const [history, setHistory] = useState<SensorReading[]>(
+		() => socket.getSnapshot().history,
+	);
+
+	useEffect(() => {
+		socket.connect();
+		return () => socket.disconnect();
+	}, [socket]);
+
+	useEffect(() => {
+		const unsub = socket.subscribe(() => {
+			const now = Date.now();
+			if (now - lastFlushRef.current < intervalMs) return;
+			lastFlushRef.current = now;
+			setHistory(socket.getSnapshot().history);
+		});
+		return unsub;
+	}, [socket, intervalMs]);
+
+	return history;
 }
 
 export function useSensorSocket() {

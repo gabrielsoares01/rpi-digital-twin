@@ -5,16 +5,22 @@ import {
 	OrbitControls,
 } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { memo, useRef } from "react";
+import { memo, type RefObject, useRef } from "react";
 import * as THREE from "three";
 import { RobotTwin } from "#/components/RobotTwin";
 import { TrailPath } from "#/components/TrailPath";
 import type { TrackedPoint } from "#/hooks/usePositionTracker";
 
+// Stable empty trail ref used when lockCenter hides the trail — never recreated
+const EMPTY_TRAIL_REF: RefObject<TrackedPoint[]> = { current: [] };
+
 type Props = {
 	currentPosition: [number, number, number];
 	currentOrientation: [number, number, number];
-	trail: TrackedPoint[];
+	/** Stable ref to the trail array — mutated in-place by usePositionTracker */
+	trailRef: RefObject<TrackedPoint[]>;
+	/** Bumped on every new trail point — triggers TrailPath GPU buffer update */
+	trailVersion: number;
 	latestAccelMagnitude: number;
 	followCamera: boolean;
 	lockCenter: boolean;
@@ -50,7 +56,8 @@ function CameraController({
 const TwinScene = memo(function TwinScene({
 	currentPosition,
 	currentOrientation,
-	trail,
+	trailRef,
+	trailVersion,
 	latestAccelMagnitude,
 	followCamera,
 	lockCenter,
@@ -58,7 +65,9 @@ const TwinScene = memo(function TwinScene({
 	const effectivePosition: [number, number, number] = lockCenter
 		? [0, 0, 0]
 		: currentPosition;
-	const effectiveTrail = lockCenter ? [] : trail;
+	// Use stable EMPTY_TRAIL_REF when locked — avoids creating new array each render
+	const effectiveTrailRef = lockCenter ? EMPTY_TRAIL_REF : trailRef;
+	const effectiveTrailVersion = lockCenter ? 0 : trailVersion;
 
 	// Distance from origin [0,0]
 	const distFromOrigin = Math.hypot(effectivePosition[0], effectivePosition[2]);
@@ -100,7 +109,10 @@ const TwinScene = memo(function TwinScene({
 			/>
 
 			{/* Movement trail */}
-			<TrailPath trail={effectiveTrail} />
+			<TrailPath
+				trailRef={effectiveTrailRef}
+				trailVersion={effectiveTrailVersion}
+			/>
 
 			{/* Camera */}
 			<CameraController target={effectivePosition} follow={followCamera} />

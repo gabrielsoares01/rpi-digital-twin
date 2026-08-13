@@ -15,14 +15,17 @@ const MAX_DT = 5; // ignore gaps longer than 5s
 
 export function usePositionTracker(latest: SensorReading | null) {
 	const posRef = useRef<[number, number, number]>([0, 0, 0]);
+	// Stable ref to the trail array — mutated in-place, never replaced
 	const trailRef = useRef<TrackedPoint[]>([]);
 	const prevTsRef = useRef<number | null>(null);
 
-	const [state, setState] = useState({
+	// Scalar state for position + orientation (cheap — 6 numbers, no arrays)
+	const [positionState, setPositionState] = useState({
 		currentPosition: [0, 0, 0] as [number, number, number],
 		currentOrientation: [0, 0, 0] as [number, number, number],
-		trail: [] as TrackedPoint[],
 	});
+	// Integer version counter drives TrailPath rerenders without copying the trail array
+	const [trailVersion, setTrailVersion] = useState(0);
 
 	useEffect(() => {
 		if (!latest) return;
@@ -56,32 +59,41 @@ export function usePositionTracker(latest: SensorReading | null) {
 			accelMagnitude: accelMag,
 			timestamp: latest.timestamp,
 		};
+		// Mutate the trail array in-place — no new array allocated
 		if (trailRef.current.length >= TRAIL_LIMIT) {
 			trailRef.current.shift();
 		}
 		trailRef.current.push(point);
 
-		setState({
+		// Update position/orientation (cheap scalar state)
+		setPositionState({
 			currentPosition: newPos,
 			currentOrientation: [
 				latest.orientation.pitch * DEG2RAD,
 				latest.orientation.yaw * DEG2RAD,
 				latest.orientation.roll * DEG2RAD,
 			],
-			trail: [...trailRef.current],
 		});
+		// Bump version to signal TrailPath that data changed, without copying the array
+		setTrailVersion((v) => v + 1);
 	}, [latest]);
 
 	const reset = useCallback(() => {
 		posRef.current = [0, 0, 0];
 		trailRef.current = [];
 		prevTsRef.current = null;
-		setState({
+		setPositionState({
 			currentPosition: [0, 0, 0],
 			currentOrientation: [0, 0, 0],
-			trail: [],
 		});
+		setTrailVersion((v) => v + 1);
 	}, []);
 
-	return { ...state, reset };
+	return {
+		currentPosition: positionState.currentPosition,
+		currentOrientation: positionState.currentOrientation,
+		trailRef,
+		trailVersion,
+		reset,
+	};
 }
