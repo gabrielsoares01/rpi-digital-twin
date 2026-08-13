@@ -21,10 +21,6 @@ const getCachedServerSnapshot = () => SERVER_SNAPSHOT;
 export function useSensorStatus() {
 	const socket = getSensorSocket();
 
-	useEffect(() => {
-		socket.connect();
-	}, [socket]);
-
 	return useSyncExternalStore(
 		socket.subscribeStatus,
 		socket.getStatus,
@@ -34,10 +30,6 @@ export function useSensorStatus() {
 
 export function useLatestTelemetry() {
 	const socket = getSensorSocket();
-
-	useEffect(() => {
-		socket.connect();
-	}, [socket]);
 
 	return useSyncExternalStore(
 		socket.subscribe,
@@ -49,10 +41,6 @@ export function useLatestTelemetry() {
 export function useLatestBatch() {
 	const socket = getSensorSocket();
 
-	useEffect(() => {
-		socket.connect();
-	}, [socket]);
-
 	return useSyncExternalStore(
 		socket.subscribe,
 		() => socket.getSnapshot().lastBatch,
@@ -62,10 +50,6 @@ export function useLatestBatch() {
 
 export function useSensorHistory() {
 	const socket = getSensorSocket();
-
-	useEffect(() => {
-		socket.connect();
-	}, [socket]);
 
 	return useSyncExternalStore(
 		socket.subscribe,
@@ -87,10 +71,6 @@ export function useThrottledSensorHistory(hz = 4): SensorReading[] {
 	);
 
 	useEffect(() => {
-		socket.connect();
-	}, [socket]);
-
-	useEffect(() => {
 		const unsub = socket.subscribe(() => {
 			const now = Date.now();
 			if (now - lastFlushRef.current < intervalMs) return;
@@ -105,10 +85,6 @@ export function useThrottledSensorHistory(hz = 4): SensorReading[] {
 
 export function useSensorSocket() {
 	const socket = getSensorSocket();
-
-	useEffect(() => {
-		socket.connect();
-	}, [socket]);
 
 	return useSyncExternalStore(
 		socket.subscribe,

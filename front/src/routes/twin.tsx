@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { usePositionTracker } from "#/hooks/usePositionTracker";
 import {
 	useLatestBatch,
@@ -7,12 +7,19 @@ import {
 	useSensorStatus,
 } from "#/hooks/useSensorSocket";
 import type { SensorSocketStatus } from "#/interfaces/sensor";
+import { getSensorSocket } from "#/services/websocket";
 
 const TwinScene = lazy(() => import("#/components/TwinScene"));
 
 export const Route = createFileRoute("/twin")({ component: TwinPage });
 
 function TwinPage() {
+	useEffect(() => {
+		const socket = getSensorSocket();
+		socket.connect();
+		return () => socket.disconnect();
+	}, []);
+
 	const status = useSensorStatus();
 	const latest = useLatestTelemetry();
 	const batch = useLatestBatch();

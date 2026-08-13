@@ -170,6 +170,14 @@ class RealSensorSocket implements SensorSocket {
 		this.stopBufferFlusher();
 		this.socket?.disconnect();
 		this.socket = null;
+		this.historyRing.clear();
+		this.latest = null;
+		this.snapshot = {
+			status: "closed",
+			latest: null,
+			history: [],
+			lastBatch: [],
+		};
 		this.setStatus("closed");
 	}
 
@@ -288,6 +296,13 @@ class MockSensorSocket implements SensorSocket {
 		if (this.connectionCount > 0) return;
 
 		this.stopGenerators();
+		this.latest = null;
+		this.snapshot = {
+			status: "closed",
+			latest: null,
+			history: [],
+			lastBatch: [],
+		};
 		this.setStatus("closed");
 	}
 
