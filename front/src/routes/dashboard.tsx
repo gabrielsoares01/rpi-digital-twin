@@ -1,5 +1,5 @@
-import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { memo, useMemo } from "react";
 import {
 	CartesianGrid,
 	Legend,
@@ -10,7 +10,11 @@ import {
 	XAxis,
 	YAxis,
 } from "recharts";
-import { useSensorSocket } from "#/hooks/useSensorSocket";
+import {
+	useLatestTelemetry,
+	useSensorHistory,
+	useSensorStatus,
+} from "#/hooks/useSensorSocket";
 import type {
 	Orientation,
 	SensorReading,
@@ -30,7 +34,9 @@ const STATUS_LABEL: Record<SensorSocketStatus, string> = {
 const CHART_COLORS = ["#2563eb", "#dc2626", "#16a34a"];
 
 function Dashboard() {
-	const { status, latest, history } = useSensorSocket();
+	const status = useSensorStatus();
+	const latest = useLatestTelemetry();
+	const history = useSensorHistory();
 
 	return (
 		<div className="p-8 space-y-6">
@@ -80,7 +86,11 @@ function Dashboard() {
 	);
 }
 
-function StatusBadge({ status }: { status: SensorSocketStatus }) {
+const StatusBadge = memo(function StatusBadge({
+	status,
+}: {
+	status: SensorSocketStatus;
+}) {
 	const color =
 		status === "open"
 			? "bg-green-100 text-green-800"
@@ -93,9 +103,9 @@ function StatusBadge({ status }: { status: SensorSocketStatus }) {
 			{STATUS_LABEL[status]}
 		</span>
 	);
-}
+});
 
-function VectorCard({
+const VectorCard = memo(function VectorCard({
 	title,
 	unit,
 	vector,
@@ -120,9 +130,13 @@ function VectorCard({
 			</div>
 		</div>
 	);
-}
+});
 
-function OrientationCard({ orientation }: { orientation: Orientation }) {
+const OrientationCard = memo(function OrientationCard({
+	orientation,
+}: {
+	orientation: Orientation;
+}) {
 	return (
 		<div className="rounded-lg border border-gray-200 p-4 shadow-sm">
 			<div className="text-sm text-gray-500 mb-2">Orientação</div>
@@ -133,9 +147,9 @@ function OrientationCard({ orientation }: { orientation: Orientation }) {
 			</div>
 		</div>
 	);
-}
+});
 
-function VectorChart({
+const VectorChart = memo(function VectorChart({
 	title,
 	history,
 	field,
@@ -201,9 +215,13 @@ function VectorChart({
 			</ResponsiveContainer>
 		</div>
 	);
-}
+});
 
-function OrientationChart({ history }: { history: SensorReading[] }) {
+const OrientationChart = memo(function OrientationChart({
+	history,
+}: {
+	history: SensorReading[];
+}) {
 	const data = useMemo(
 		() =>
 			history.map((reading) => ({
@@ -261,4 +279,4 @@ function OrientationChart({ history }: { history: SensorReading[] }) {
 			</ResponsiveContainer>
 		</div>
 	);
-}
+});

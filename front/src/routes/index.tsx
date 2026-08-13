@@ -1,22 +1,23 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-	Box,
-	LineChart,
-	Cpu,
-	Radio,
 	Activity,
-	Layers,
-	Zap,
 	ArrowRight,
+	Box,
 	Compass,
+	Cpu,
 	Gauge,
+	Layers,
+	LineChart,
+	Radio,
+	Zap,
 } from "lucide-react";
-import { useSensorSocket } from "#/hooks/useSensorSocket";
+import { useLatestTelemetry, useSensorStatus } from "#/hooks/useSensorSocket";
 
 export const Route = createFileRoute("/")({ component: Home });
 
 function Home() {
-	const { status, latest } = useSensorSocket();
+	const status = useSensorStatus();
+	const latest = useLatestTelemetry();
 
 	return (
 		<div className="min-h-screen bg-slate-950 text-slate-100 relative overflow-hidden">
@@ -40,10 +41,10 @@ function Home() {
 							</span>
 						</h1>
 						<p className="text-lg text-slate-400 leading-relaxed">
-							A real-time 3D digital twin monitoring system for an autonomous
-							or remote-controlled robot. Processes live accelerometer,
-							gyroscope, linear velocity, and orientation data streamed via
-							Socket.IO to visualize movement and spatial trajectories.
+							A real-time 3D digital twin monitoring system for an autonomous or
+							remote-controlled robot. Processes live accelerometer, gyroscope,
+							linear velocity, and orientation data streamed via Socket.IO to
+							visualize movement and spatial trajectories.
 						</p>
 					</div>
 
@@ -142,9 +143,7 @@ function Home() {
 								<Compass className="w-3.5 h-3.5 text-indigo-400" /> Orientation
 							</div>
 							<p className="text-base font-mono font-semibold text-slate-100">
-								{latest
-									? `${latest.orientation.yaw.toFixed(1)}° Yaw`
-									: "--"}
+								{latest ? `${latest.orientation.yaw.toFixed(1)}° Yaw` : "--"}
 							</p>
 						</div>
 
@@ -195,8 +194,8 @@ function Home() {
 							</h3>
 							<p className="text-sm text-slate-400 leading-relaxed">
 								Live time-series charts powered by Recharts, tracking 3-axis
-								gyroscope, acceleration vectors, linear velocities, and
-								Euler orientation angles.
+								gyroscope, acceleration vectors, linear velocities, and Euler
+								orientation angles.
 							</p>
 						</div>
 
@@ -208,9 +207,9 @@ function Home() {
 								Hardware & Socket.IO Backend
 							</h3>
 							<p className="text-sm text-slate-400 leading-relaxed">
-								Integrated with Raspberry Pi onboard sensors. Transmits high-frequency
-								IMU sensor payloads over WebSocket protocol with built-in mock mode
-								support.
+								Integrated with Raspberry Pi onboard sensors. Transmits
+								high-frequency IMU sensor payloads over WebSocket protocol with
+								built-in mock mode support.
 							</p>
 						</div>
 					</div>

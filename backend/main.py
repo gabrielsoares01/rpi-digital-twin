@@ -32,6 +32,10 @@ WS_HOST = "0.0.0.0"
 WS_PORT = 8765
 
 
+def round_dict(d, decimals=3):
+    return {k: round(v, decimals) for k, v in d.items()}
+
+
 async def main():
     sensor = None
     server = None
@@ -88,13 +92,13 @@ async def main():
                 accel, gyro, orientation, dt=dt
             )
 
-            # --- 5. Monta o pacote de dados ---
+            # --- 5. Monta o pacote de dados otimizado ---
             payload = {
-                "timestamp": now,
-                "gyro": gyro,
-                "accel": accel,
-                "linear_velocity": linear_velocity,
-                "orientation": orientation,
+                "timestamp": round(now, 4),
+                "gyro": round_dict(gyro, 3),
+                "accel": round_dict(accel, 3),
+                "linear_velocity": round_dict(linear_velocity, 3),
+                "orientation": round_dict(orientation, 3),
             }
 
             # --- 6. Transmite aos clientes conectados ---

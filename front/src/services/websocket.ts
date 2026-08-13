@@ -49,7 +49,9 @@ export interface SensorSocket {
 	connect(): void;
 	disconnect(): void;
 	subscribe(listener: () => void): () => void;
+	subscribeStatus(listener: () => void): () => void;
 	getSnapshot(): SensorSocketSnapshot;
+	getStatus(): SensorSocketStatus;
 }
 
 class RealSensorSocket implements SensorSocket {
@@ -61,6 +63,7 @@ class RealSensorSocket implements SensorSocket {
 	private pendingBuffer: SensorReading[] = [];
 	private flushIntervalId: ReturnType<typeof setInterval> | null = null;
 	private listeners = new Set<() => void>();
+	private statusListeners = new Set<() => void>();
 	private snapshot: SensorSocketSnapshot;
 
 	constructor(url: string) {
@@ -114,8 +117,17 @@ class RealSensorSocket implements SensorSocket {
 		return () => this.listeners.delete(listener);
 	}
 
+	subscribeStatus(listener: () => void): () => void {
+		this.statusListeners.add(listener);
+		return () => this.statusListeners.delete(listener);
+	}
+
 	getSnapshot(): SensorSocketSnapshot {
 		return this.snapshot;
+	}
+
+	getStatus(): SensorSocketStatus {
+		return this.status;
 	}
 
 	private handleMessage(raw: unknown): void {
@@ -152,8 +164,14 @@ class RealSensorSocket implements SensorSocket {
 	}
 
 	private setStatus(status: SensorSocketStatus): void {
+		if (this.status === status) return;
 		this.status = status;
+		this.notifyStatus();
 		this.notify();
+	}
+
+	private notifyStatus(): void {
+		for (const listener of this.statusListeners) listener();
 	}
 
 	private notify(): void {
@@ -171,6 +189,7 @@ class MockSensorSocket implements SensorSocket {
 	private latest: SensorReading | null = null;
 	private history: SensorReading[] = [];
 	private listeners = new Set<() => void>();
+	private statusListeners = new Set<() => void>();
 	private intervalId: ReturnType<typeof setInterval> | null = null;
 	private snapshot: SensorSocketSnapshot = {
 		status: this.status,
@@ -199,8 +218,17 @@ class MockSensorSocket implements SensorSocket {
 		return () => this.listeners.delete(listener);
 	}
 
+	subscribeStatus(listener: () => void): () => void {
+		this.statusListeners.add(listener);
+		return () => this.statusListeners.delete(listener);
+	}
+
 	getSnapshot(): SensorSocketSnapshot {
 		return this.snapshot;
+	}
+
+	getStatus(): SensorSocketStatus {
+		return this.status;
 	}
 
 	private emitReading(): void {
@@ -222,8 +250,14 @@ class MockSensorSocket implements SensorSocket {
 	}
 
 	private setStatus(status: SensorSocketStatus): void {
+		if (this.status === status) return;
 		this.status = status;
+		this.notifyStatus();
 		this.notify();
+	}
+
+	private notifyStatus(): void {
+		for (const listener of this.statusListeners) listener();
 	}
 
 	private notify(): void {

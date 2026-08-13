@@ -1,11 +1,11 @@
-import { useRef } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
 import {
-	OrbitControls,
-	Grid,
 	GizmoHelper,
 	GizmoViewport,
+	Grid,
+	OrbitControls,
 } from "@react-three/drei";
+import { Canvas, useFrame } from "@react-three/fiber";
+import { memo, useRef } from "react";
 import * as THREE from "three";
 import { RobotTwin } from "#/components/RobotTwin";
 import { TrailPath } from "#/components/TrailPath";
@@ -47,7 +47,7 @@ function CameraController({
 	);
 }
 
-export default function TwinScene({
+const TwinScene = memo(function TwinScene({
 	currentPosition,
 	currentOrientation,
 	trail,
@@ -61,10 +61,7 @@ export default function TwinScene({
 	const effectiveTrail = lockCenter ? [] : trail;
 
 	// Distance from origin [0,0]
-	const distFromOrigin = Math.hypot(
-		effectivePosition[0],
-		effectivePosition[2],
-	);
+	const distFromOrigin = Math.hypot(effectivePosition[0], effectivePosition[2]);
 	// Grid starts with 1000cm (10m) radius and grows in 1000cm steps whenever robot nears the border
 	const gridRadius = Math.max(
 		1000,
@@ -114,7 +111,12 @@ export default function TwinScene({
 			</GizmoHelper>
 
 			{/* Atmospheric fog */}
-			<fog attach="fog" args={["#0a0a1a", gridRadius * 0.8, gridRadius * 2.5]} />
+			<fog
+				attach="fog"
+				args={["#0a0a1a", gridRadius * 0.8, gridRadius * 2.5]}
+			/>
 		</Canvas>
 	);
-}
+});
+
+export default TwinScene;

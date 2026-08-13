@@ -1,5 +1,5 @@
-import { useMemo } from "react";
 import { Line } from "@react-three/drei";
+import { memo, useMemo } from "react";
 import * as THREE from "three";
 import type { TrackedPoint } from "#/hooks/usePositionTracker";
 
@@ -29,11 +29,12 @@ type Props = {
 	maxSpeed?: number;
 };
 
-export function TrailPath({ trail, maxSpeed = 1.0 }: Props) {
+export const TrailPath = memo(function TrailPath({
+	trail,
+	maxSpeed = 1.0,
+}: Props) {
 	const { points, colors } = useMemo(() => {
-		const pts = trail.map(
-			(p) => p.position as [number, number, number],
-		);
+		const pts = trail.map((p) => p.position as [number, number, number]);
 		const cols = trail.map((p) => speedToColor(p.speed, maxSpeed));
 		return { points: pts, colors: cols };
 	}, [trail, maxSpeed]);
@@ -41,4 +42,4 @@ export function TrailPath({ trail, maxSpeed = 1.0 }: Props) {
 	if (points.length < 2) return null;
 
 	return <Line points={points} vertexColors={colors} lineWidth={3} />;
-}
+});
