@@ -23,7 +23,6 @@ export function useSensorStatus() {
 
 	useEffect(() => {
 		socket.connect();
-		return () => socket.disconnect();
 	}, [socket]);
 
 	return useSyncExternalStore(
@@ -38,7 +37,6 @@ export function useLatestTelemetry() {
 
 	useEffect(() => {
 		socket.connect();
-		return () => socket.disconnect();
 	}, [socket]);
 
 	return useSyncExternalStore(
@@ -53,7 +51,6 @@ export function useLatestBatch() {
 
 	useEffect(() => {
 		socket.connect();
-		return () => socket.disconnect();
 	}, [socket]);
 
 	return useSyncExternalStore(
@@ -68,7 +65,6 @@ export function useSensorHistory() {
 
 	useEffect(() => {
 		socket.connect();
-		return () => socket.disconnect();
 	}, [socket]);
 
 	return useSyncExternalStore(
@@ -92,7 +88,6 @@ export function useThrottledSensorHistory(hz = 4): SensorReading[] {
 
 	useEffect(() => {
 		socket.connect();
-		return () => socket.disconnect();
 	}, [socket]);
 
 	useEffect(() => {
@@ -113,7 +108,6 @@ export function useSensorSocket() {
 
 	useEffect(() => {
 		socket.connect();
-		return () => socket.disconnect();
 	}, [socket]);
 
 	return useSyncExternalStore(
