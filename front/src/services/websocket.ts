@@ -12,7 +12,6 @@ const SENSOR_READING_EVENT = "telemetry";
 const RECONNECTION_DELAY_MS = 1000;
 const RECONNECTION_DELAY_MAX_MS = 30000;
 const BATCH_FLUSH_INTERVAL_MS = 100; // Buffer incoming 50Hz messages and flush to React subscribers at ~10Hz (100ms) to prevent UI/3D stuttering
-const MOCK_GENERATION_INTERVAL_MS = 20; // 50Hz (20ms) generation frequency matching backend LOOP_FREQUENCY_HZ = 50
 
 function isVector3(data: unknown): data is Vector3 {
 	if (typeof data !== "object" || data === null) return false;
@@ -125,6 +124,7 @@ class RealSensorSocket implements SensorSocket {
 			status: this.status,
 			latest: this.latest,
 			history: [],
+			lastBatch: [],
 		};
 	}
 
@@ -173,32 +173,41 @@ class RealSensorSocket implements SensorSocket {
 		this.setStatus("closed");
 	}
 
-	subscribe(listener: () => void): () => void {
+	subscribe = (listener: () => void): (() => void) => {
 		this.listeners.add(listener);
 		return () => this.listeners.delete(listener);
-	}
+	};
 
-	subscribeStatus(listener: () => void): () => void {
+	subscribeStatus = (listener: () => void): (() => void) => {
 		this.statusListeners.add(listener);
 		return () => this.statusListeners.delete(listener);
-	}
+	};
 
-	getSnapshot(): SensorSocketSnapshot {
+	getSnapshot = (): SensorSocketSnapshot => {
 		return this.snapshot;
-	}
+	};
 
-	getStatus(): SensorSocketStatus {
+	getStatus = (): SensorSocketStatus => {
 		return this.status;
-	}
+	};
 
 	private handleMessage(raw: unknown): void {
-		if (!isSensorReading(raw)) {
-			console.warn("[SensorSocket] Ignoring malformed reading:", raw);
+		if (!Array.isArray(raw)) {
+			console.warn("[SensorSocket] Ignoring non-array telemetry payload:", raw);
 			return;
 		}
 
-		// Buffer high-frequency telemetry messages
-		this.pendingBuffer.push(raw);
+		for (let i = 0; i < raw.length; i++) {
+			const item = raw[i];
+			if (isSensorReading(item)) {
+				this.pendingBuffer.push(item);
+			} else {
+				console.warn(
+					"[SensorSocket] Ignoring malformed reading in batch:",
+					item,
+				);
+			}
+		}
 	}
 
 	private startBufferFlusher(): void {
@@ -206,12 +215,14 @@ class RealSensorSocket implements SensorSocket {
 		this.flushIntervalId = setInterval(() => {
 			if (this.pendingBuffer.length === 0) return;
 
-			// Push batch into ring buffer, then truncate pendingBuffer in-place (no new array)
+			// Snapshot the batch BEFORE clearing (used by usePositionTracker for
+			// per-frame integration to avoid position jumps during render stalls)
+			const flushedBatch = this.pendingBuffer.slice();
 			this.historyRing.pushBatch(this.pendingBuffer);
 			this.latest = this.pendingBuffer[this.pendingBuffer.length - 1];
 			this.pendingBuffer.length = 0;
 
-			this.notify();
+			this.notify(flushedBatch);
 		}, BATCH_FLUSH_INTERVAL_MS);
 	}
 
@@ -227,18 +238,19 @@ class RealSensorSocket implements SensorSocket {
 		if (this.status === status) return;
 		this.status = status;
 		this.notifyStatus();
-		this.notify();
+		this.notify([]);
 	}
 
 	private notifyStatus(): void {
 		for (const listener of this.statusListeners) listener();
 	}
 
-	private notify(): void {
+	private notify(lastBatch: SensorReading[] = []): void {
 		this.snapshot = {
 			status: this.status,
 			latest: this.latest,
 			history: this.historyRing.toArray(),
+			lastBatch,
 		};
 		for (const listener of this.listeners) listener();
 	}
@@ -248,15 +260,14 @@ class MockSensorSocket implements SensorSocket {
 	private status: SensorSocketStatus = "closed";
 	private latest: SensorReading | null = null;
 	private historyRing = new RingBuffer<SensorReading>(HISTORY_LIMIT);
-	private pendingBuffer: SensorReading[] = [];
 	private listeners = new Set<() => void>();
 	private statusListeners = new Set<() => void>();
-	private genIntervalId: ReturnType<typeof setInterval> | null = null;
 	private flushIntervalId: ReturnType<typeof setInterval> | null = null;
 	private snapshot: SensorSocketSnapshot = {
 		status: this.status,
 		latest: null,
 		history: [],
+		lastBatch: [],
 	};
 	private connectionCount = 0;
 
@@ -280,32 +291,28 @@ class MockSensorSocket implements SensorSocket {
 		this.setStatus("closed");
 	}
 
-	subscribe(listener: () => void): () => void {
+	subscribe = (listener: () => void): (() => void) => {
 		this.listeners.add(listener);
 		return () => this.listeners.delete(listener);
-	}
+	};
 
-	subscribeStatus(listener: () => void): () => void {
+	subscribeStatus = (listener: () => void): (() => void) => {
 		this.statusListeners.add(listener);
 		return () => this.statusListeners.delete(listener);
-	}
+	};
 
-	getSnapshot(): SensorSocketSnapshot {
+	getSnapshot = (): SensorSocketSnapshot => {
 		return this.snapshot;
-	}
+	};
 
-	getStatus(): SensorSocketStatus {
+	getStatus = (): SensorSocketStatus => {
 		return this.status;
-	}
+	};
 
 	private startGenerators(): void {
-		if (this.genIntervalId || this.flushIntervalId) return;
-		// 50Hz generation interval (every 20ms) matching backend frequency
-		this.genIntervalId = setInterval(
-			() => this.generateMockFrame(),
-			MOCK_GENERATION_INTERVAL_MS,
-		);
-		// 10Hz flush interval (every 100ms) matching RealSensorSocket buffer flusher
+		if (this.flushIntervalId) return;
+		// 10Hz flush interval (every 100ms) matching RealSensorSocket buffer flusher.
+		// Generates and flushes batches directly to optimize CPU.
 		this.flushIntervalId = setInterval(
 			() => this.flushBuffer(),
 			BATCH_FLUSH_INTERVAL_MS,
@@ -313,78 +320,74 @@ class MockSensorSocket implements SensorSocket {
 	}
 
 	private stopGenerators(): void {
-		if (this.genIntervalId) {
-			clearInterval(this.genIntervalId);
-			this.genIntervalId = null;
-		}
 		if (this.flushIntervalId) {
 			clearInterval(this.flushIntervalId);
 			this.flushIntervalId = null;
 		}
-		this.pendingBuffer.length = 0;
 		this.historyRing.clear();
 	}
 
-	private generateMockFrame(): void {
-		const now = Date.now() / 1000;
-		const jitter = (range = 0.1) =>
-			Number(((Math.random() - 0.5) * range).toFixed(3));
-		const timeSec = now % 3600;
-
-		const reading: SensorReading = {
-			timestamp: Number(now.toFixed(4)),
-			gyro: {
-				x: Number((Math.sin(timeSec * 2) * 0.5 + jitter(0.05)).toFixed(3)),
-				y: Number((Math.cos(timeSec * 2) * 0.5 + jitter(0.05)).toFixed(3)),
-				z: Number((Math.sin(timeSec) * 0.2 + jitter(0.02)).toFixed(3)),
-			},
-			accel: {
-				x: Number((Math.sin(timeSec * 3) * 0.4 + jitter(0.05)).toFixed(3)),
-				y: Number((Math.cos(timeSec * 3) * 0.4 + jitter(0.05)).toFixed(3)),
-				z: Number(
-					(9.81 + Math.sin(timeSec * 5) * 0.15 + jitter(0.03)).toFixed(3),
-				),
-			},
-			linear_velocity: {
-				x: Number((Math.cos(timeSec) * 0.8 + jitter(0.05)).toFixed(3)),
-				y: Number((Math.sin(timeSec) * 0.8 + jitter(0.05)).toFixed(3)),
-				z: Number(jitter(0.02).toFixed(3)),
-			},
-			orientation: {
-				roll: Number((Math.sin(timeSec) * 10 + jitter(0.2)).toFixed(3)),
-				pitch: Number((Math.cos(timeSec) * 10 + jitter(0.2)).toFixed(3)),
-				yaw: Number(((timeSec * 25) % 360).toFixed(3)),
-			},
-		};
-		this.pendingBuffer.push(reading);
-	}
-
 	private flushBuffer(): void {
-		if (this.pendingBuffer.length === 0) return;
+		const now = Date.now() / 1000;
+		const batch: SensorReading[] = [];
+		// Generate 5 frames representing the last 100ms (each 20ms apart) in order
+		for (let i = 4; i >= 0; i--) {
+			const frameTime = now - i * 0.02; // 20ms intervals (50Hz)
+			const jitter = (range = 0.1) =>
+				Number(((Math.random() - 0.5) * range).toFixed(3));
+			const timeSec = frameTime % 3600;
 
-		this.historyRing.pushBatch(this.pendingBuffer);
-		this.latest = this.pendingBuffer[this.pendingBuffer.length - 1];
-		this.pendingBuffer.length = 0;
+			const reading: SensorReading = {
+				timestamp: Number(frameTime.toFixed(4)),
+				gyro: {
+					x: Number((Math.sin(timeSec * 2) * 0.5 + jitter(0.05)).toFixed(3)),
+					y: Number((Math.cos(timeSec * 2) * 0.5 + jitter(0.05)).toFixed(3)),
+					z: Number((Math.sin(timeSec) * 0.2 + jitter(0.02)).toFixed(3)),
+				},
+				accel: {
+					x: Number((Math.sin(timeSec * 3) * 0.4 + jitter(0.05)).toFixed(3)),
+					y: Number((Math.cos(timeSec * 3) * 0.4 + jitter(0.05)).toFixed(3)),
+					z: Number(
+						(9.81 + Math.sin(timeSec * 5) * 0.15 + jitter(0.03)).toFixed(3),
+					),
+				},
+				linear_velocity: {
+					x: Number((Math.cos(timeSec) * 0.8 + jitter(0.05)).toFixed(3)),
+					y: Number((Math.sin(timeSec) * 0.8 + jitter(0.05)).toFixed(3)),
+					z: Number(jitter(0.02).toFixed(3)),
+				},
+				orientation: {
+					roll: Number((Math.sin(timeSec) * 10 + jitter(0.2)).toFixed(3)),
+					pitch: Number((Math.cos(timeSec) * 10 + jitter(0.2)).toFixed(3)),
+					yaw: Number(((timeSec * 25) % 360).toFixed(3)),
+				},
+			};
+			batch.push(reading);
+		}
 
-		this.notify();
+		this.historyRing.pushBatch(batch);
+		this.latest = batch[batch.length - 1];
+
+		this.notify(batch);
 	}
 
 	private setStatus(status: SensorSocketStatus): void {
 		if (this.status === status) return;
 		this.status = status;
 		this.notifyStatus();
-		this.notify();
+		this.notify([]);
 	}
 
 	private notifyStatus(): void {
 		for (const listener of this.statusListeners) listener();
 	}
 
-	private notify(): void {
+	private notify(lastBatch: SensorReading[] = []): void {
 		this.snapshot = {
 			status: this.status,
 			latest: this.latest,
 			history: this.historyRing.toArray(),
+			lastBatch,
 		};
 		for (const listener of this.listeners) listener();
 	}

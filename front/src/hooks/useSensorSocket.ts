@@ -2,11 +2,21 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { SensorReading, SensorSocketSnapshot } from "#/interfaces/sensor";
 import { getSensorSocket } from "#/services/websocket";
 
+const EMPTY_HISTORY: SensorReading[] = [];
+const EMPTY_BATCH: SensorReading[] = [];
+
 const SERVER_SNAPSHOT: SensorSocketSnapshot = {
 	status: "closed",
 	latest: null,
-	history: [],
+	history: EMPTY_HISTORY,
+	lastBatch: EMPTY_BATCH,
 };
+
+const getClosedStatus = () => "closed" as const;
+const getNull = () => null;
+const getEmptyHistory = () => EMPTY_HISTORY;
+const getEmptyBatch = () => EMPTY_BATCH;
+const getCachedServerSnapshot = () => SERVER_SNAPSHOT;
 
 export function useSensorStatus() {
 	const socket = getSensorSocket();
@@ -17,9 +27,9 @@ export function useSensorStatus() {
 	}, [socket]);
 
 	return useSyncExternalStore(
-		socket.subscribeStatus.bind(socket),
-		socket.getStatus.bind(socket),
-		() => "closed",
+		socket.subscribeStatus,
+		socket.getStatus,
+		getClosedStatus,
 	);
 }
 
@@ -32,9 +42,24 @@ export function useLatestTelemetry() {
 	}, [socket]);
 
 	return useSyncExternalStore(
-		socket.subscribe.bind(socket),
+		socket.subscribe,
 		() => socket.getSnapshot().latest,
-		() => null,
+		getNull,
+	);
+}
+
+export function useLatestBatch() {
+	const socket = getSensorSocket();
+
+	useEffect(() => {
+		socket.connect();
+		return () => socket.disconnect();
+	}, [socket]);
+
+	return useSyncExternalStore(
+		socket.subscribe,
+		() => socket.getSnapshot().lastBatch,
+		getEmptyBatch,
 	);
 }
 
@@ -47,9 +72,9 @@ export function useSensorHistory() {
 	}, [socket]);
 
 	return useSyncExternalStore(
-		socket.subscribe.bind(socket),
+		socket.subscribe,
 		() => socket.getSnapshot().history,
-		() => [],
+		getEmptyHistory,
 	);
 }
 
@@ -92,8 +117,8 @@ export function useSensorSocket() {
 	}, [socket]);
 
 	return useSyncExternalStore(
-		socket.subscribe.bind(socket),
-		socket.getSnapshot.bind(socket),
-		() => SERVER_SNAPSHOT,
+		socket.subscribe,
+		socket.getSnapshot,
+		getCachedServerSnapshot,
 	);
 }

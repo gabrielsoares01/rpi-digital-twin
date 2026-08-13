@@ -1,11 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
 	CartesianGrid,
 	Legend,
 	Line,
 	LineChart,
-	ResponsiveContainer,
 	Tooltip,
 	XAxis,
 	YAxis,
@@ -32,6 +31,26 @@ const STATUS_LABEL: Record<SensorSocketStatus, string> = {
 };
 
 const CHART_COLORS = ["#2563eb", "#dc2626", "#16a34a"];
+
+function useContainerSize(ref: React.RefObject<HTMLDivElement | null>) {
+	const [size, setSize] = useState({ width: 0, height: 0 });
+
+	useEffect(() => {
+		const el = ref.current;
+		if (!el) return;
+
+		const observer = new ResizeObserver((entries) => {
+			if (!entries || entries.length === 0) return;
+			const { width, height } = entries[0].contentRect;
+			setSize({ width, height });
+		});
+
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, [ref]);
+
+	return size;
+}
 
 function Dashboard() {
 	const status = useSensorStatus();
@@ -158,6 +177,9 @@ const VectorChart = memo(function VectorChart({
 	history: SensorReading[];
 	field: "gyro" | "accel" | "linear_velocity";
 }) {
+	const containerRef = useRef<HTMLDivElement>(null);
+	const { width, height } = useContainerSize(containerRef);
+
 	const data = useMemo(
 		() =>
 			history.map((reading) => ({
@@ -170,10 +192,10 @@ const VectorChart = memo(function VectorChart({
 	);
 
 	return (
-		<div className="h-64 w-full">
+		<div ref={containerRef} className="h-64 w-full">
 			<h2 className="text-sm font-medium text-gray-600 mb-2">{title}</h2>
-			<ResponsiveContainer width="100%" height="100%">
-				<LineChart data={data}>
+			{width > 0 && height > 0 && (
+				<LineChart width={width} height={height - 28} data={data}>
 					<CartesianGrid strokeDasharray="3 3" />
 					<XAxis
 						dataKey="timestamp"
@@ -212,7 +234,7 @@ const VectorChart = memo(function VectorChart({
 						isAnimationActive={false}
 					/>
 				</LineChart>
-			</ResponsiveContainer>
+			)}
 		</div>
 	);
 });
@@ -222,6 +244,9 @@ const OrientationChart = memo(function OrientationChart({
 }: {
 	history: SensorReading[];
 }) {
+	const containerRef = useRef<HTMLDivElement>(null);
+	const { width, height } = useContainerSize(containerRef);
+
 	const data = useMemo(
 		() =>
 			history.map((reading) => ({
@@ -234,10 +259,10 @@ const OrientationChart = memo(function OrientationChart({
 	);
 
 	return (
-		<div className="h-64 w-full">
+		<div ref={containerRef} className="h-64 w-full">
 			<h2 className="text-sm font-medium text-gray-600 mb-2">Orientação (°)</h2>
-			<ResponsiveContainer width="100%" height="100%">
-				<LineChart data={data}>
+			{width > 0 && height > 0 && (
+				<LineChart width={width} height={height - 28} data={data}>
 					<CartesianGrid strokeDasharray="3 3" />
 					<XAxis
 						dataKey="timestamp"
@@ -276,7 +301,7 @@ const OrientationChart = memo(function OrientationChart({
 						isAnimationActive={false}
 					/>
 				</LineChart>
-			</ResponsiveContainer>
+			)}
 		</div>
 	);
 });

@@ -1,7 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense, useState } from "react";
 import { usePositionTracker } from "#/hooks/usePositionTracker";
-import { useLatestTelemetry, useSensorStatus } from "#/hooks/useSensorSocket";
+import {
+	useLatestBatch,
+	useLatestTelemetry,
+	useSensorStatus,
+} from "#/hooks/useSensorSocket";
 import type { SensorSocketStatus } from "#/interfaces/sensor";
 
 const TwinScene = lazy(() => import("#/components/TwinScene"));
@@ -11,8 +15,9 @@ export const Route = createFileRoute("/twin")({ component: TwinPage });
 function TwinPage() {
 	const status = useSensorStatus();
 	const latest = useLatestTelemetry();
+	const batch = useLatestBatch();
 	const { currentPosition, currentOrientation, trailRef, trailVersion, reset } =
-		usePositionTracker(latest);
+		usePositionTracker(batch);
 	const [followCamera, setFollowCamera] = useState(true);
 	const [lockCenter, setLockCenter] = useState(false);
 

@@ -59,6 +59,8 @@ async def main():
         first_reading = sensor.read()
         last_time = first_reading["timestamp"]
 
+        payload_buffer = []
+
         print("[main] Loop principal iniciado. Pressione Ctrl+C para encerrar.")
 
         while True:
@@ -100,9 +102,12 @@ async def main():
                 "linear_velocity": round_dict(linear_velocity, 3),
                 "orientation": round_dict(orientation, 3),
             }
+            payload_buffer.append(payload)
 
-            # --- 6. Transmite aos clientes conectados ---
-            await server.broadcast(payload)
+            # --- 6. Transmite em lotes a 10Hz (5 * 20ms = 100ms) ---
+            if len(payload_buffer) >= 5:
+                await server.broadcast(payload_buffer)
+                payload_buffer = []
 
             # --- 7. Controle do tempo do loop ---
             elapsed = time.time() - iter_start
