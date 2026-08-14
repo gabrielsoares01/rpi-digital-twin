@@ -32,6 +32,10 @@ WS_HOST = "0.0.0.0"
 WS_PORT = 8765
 
 
+def round_dict(d, decimals=3):
+    return {k: round(v, decimals) for k, v in d.items()}
+
+
 async def main():
     sensor = None
     server = None
@@ -54,6 +58,8 @@ async def main():
         # Leitura inicial para estabilizar o timestamp de delta t (dt)
         first_reading = sensor.read()
         last_time = first_reading["timestamp"]
+
+        payload_buffer = []
 
         print("[main] Loop principal iniciado. Pressione Ctrl+C para encerrar.")
 
@@ -88,17 +94,20 @@ async def main():
                 accel, gyro, orientation, dt=dt
             )
 
-            # --- 5. Monta o pacote de dados ---
+            # --- 5. Monta o pacote de dados otimizado ---
             payload = {
-                "timestamp": now,
-                "gyro": gyro,
-                "accel": accel,
-                "linear_velocity": linear_velocity,
-                "orientation": orientation,
+                "timestamp": round(now, 4),
+                "gyro": round_dict(gyro, 3),
+                "accel": round_dict(accel, 3),
+                "linear_velocity": round_dict(linear_velocity, 3),
+                "orientation": round_dict(orientation, 3),
             }
+            payload_buffer.append(payload)
 
-            # --- 6. Transmite aos clientes conectados ---
-            await server.broadcast(payload)
+            # --- 6. Transmite em lotes a 10Hz (5 * 20ms = 100ms) ---
+            if len(payload_buffer) >= 5:
+                await server.broadcast(payload_buffer)
+                payload_buffer = []
 
             # --- 7. Controle do tempo do loop ---
             elapsed = time.time() - iter_start

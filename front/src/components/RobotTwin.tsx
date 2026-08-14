@@ -1,6 +1,6 @@
-import { useRef, useMemo } from "react";
-import { useFrame } from "@react-three/fiber";
 import { Edges } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
+import { memo, useMemo, useRef } from "react";
 import * as THREE from "three";
 
 type Props = {
@@ -14,7 +14,11 @@ const HIGH_COLOR = new THREE.Color("#ef4444");
 const EDGE_COLOR = "#38bdf8";
 const BOX_HEIGHT = 7;
 
-export function RobotTwin({ position, rotation, accelMagnitude }: Props) {
+export const RobotTwin = memo(function RobotTwin({
+	position,
+	rotation,
+	accelMagnitude,
+}: Props) {
 	const meshRef = useRef<THREE.Mesh>(null);
 	const targetPos = useRef(new THREE.Vector3());
 	const targetQuat = useRef(new THREE.Quaternion());
@@ -56,4 +60,4 @@ export function RobotTwin({ position, rotation, accelMagnitude }: Props) {
 			<Edges color={EDGE_COLOR} threshold={15} />
 		</mesh>
 	);
-}
+});
