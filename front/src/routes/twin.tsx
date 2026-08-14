@@ -1,7 +1,7 @@
-import { Suspense, lazy, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useSensorSocket } from "#/hooks/useSensorSocket";
+import { lazy, Suspense, useState } from "react";
 import { usePositionTracker } from "#/hooks/usePositionTracker";
+import { useSensorSocket } from "#/hooks/useSensorSocket";
 import type { SensorSocketStatus } from "#/interfaces/sensor";
 
 const TwinScene = lazy(() => import("#/components/TwinScene"));
@@ -150,8 +150,7 @@ function TwinPage() {
 						<div
 							className="w-24 h-2 rounded-full"
 							style={{
-								background:
-									"linear-gradient(to right, #1e40af, #ef4444)",
+								background: "linear-gradient(to right, #1e40af, #ef4444)",
 							}}
 						/>
 						<span className="text-white/50 text-xs">High</span>

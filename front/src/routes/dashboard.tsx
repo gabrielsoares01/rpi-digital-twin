@@ -1,5 +1,5 @@
-import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useMemo } from "react";
 import {
 	CartesianGrid,
 	Legend,

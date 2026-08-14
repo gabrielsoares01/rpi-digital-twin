@@ -1,6 +1,6 @@
-import { useRef, useMemo } from "react";
-import { useFrame } from "@react-three/fiber";
 import { Edges } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
+import { useMemo, useRef } from "react";
 import * as THREE from "three";
 
 type Props = {

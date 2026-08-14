@@ -17,6 +17,10 @@ Para rodar (na Raspberry Pi, com o MPU6050 conectado via I2C):
 
 import asyncio
 import time
+import os
+import multiprocessing
+import logging
+from logger import setup_logger
 
 from sensor_reader import SensorReader
 from orientation_filter import ComplementaryFilter
@@ -31,22 +35,65 @@ CALIBRATION_SAMPLES = 200       # Amostras usadas na calibração inicial
 WS_HOST = "0.0.0.0"
 WS_PORT = 8765
 
+class CPUUsageTracker:
+    def __init__(self):
+        self.last_time = time.time()
+        self.last_cpu_time = sum(os.times()[:2])
+
+    def get_cpu_usage(self):
+        now = time.time()
+        cpu_now = sum(os.times()[:2])
+        dt = now - self.last_time
+        dcpu = cpu_now - self.last_cpu_time
+        
+        self.last_time = now
+        self.last_cpu_time = cpu_now
+        
+        if dt <= 0:
+            return 0.0
+        
+        cores = multiprocessing.cpu_count()
+        usage = (dcpu / dt) * 100 / cores
+        return round(min(100.0, usage), 2)
+
+def get_memory_usage_mb():
+    try:
+        with open("/proc/self/status", "r") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    parts = line.split()
+                    return round(float(parts[1]) / 1024, 2)
+    except Exception:
+        try:
+            import resource
+            # ru_maxrss is in KB on Linux, but bytes on macOS
+            factor = 1024.0
+            if os.uname().sysname == 'Darwin':
+                factor = 1024.0 * 1024.0
+            return round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / factor, 2)
+        except Exception:
+            return 0.0
 
 async def main():
     sensor = None
     server = None
 
     try:
-        # --- Inicialização dos módulos ---
-        print("[main] Inicializando sensor...")
+        # Pre-initialize websocket server to bind to logger
+        server = WebSocketServer(host=WS_HOST, port=WS_PORT)
+
+        # Setup structured logging
+        setup_logger(level=logging.INFO, server=server)
+        logger = logging.getLogger("main")
+
+        logger.info("Inicializando sensor...")
         sensor = SensorReader()
         sensor.calibrate(samples=CALIBRATION_SAMPLES)
 
         orientation_filter = ComplementaryFilter(alpha=0.96)
         velocity_estimator = VelocityEstimator()
 
-        print(f"[main] Iniciando servidor WebSocket em ws://{WS_HOST}:{WS_PORT}")
-        server = WebSocketServer(host=WS_HOST, port=WS_PORT)
+        logger.info(f"Iniciando servidor WebSocket em ws://{WS_HOST}:{WS_PORT}")
         await server.start()
 
         loop_period = 1.0 / LOOP_FREQUENCY_HZ
@@ -55,7 +102,13 @@ async def main():
         first_reading = sensor.read()
         last_time = first_reading["timestamp"]
 
-        print("[main] Loop principal iniciado. Pressione Ctrl+C para encerrar.")
+        logger.info("Loop principal iniciado. Pressione Ctrl+C para encerrar.")
+
+        # Performance monitoring metrics
+        cpu_tracker = CPUUsageTracker()
+        last_metrics_time = time.time()
+        processed_frames = 0
+        loop_latencies = []
 
         while True:
             iter_start = time.time()
@@ -64,7 +117,7 @@ async def main():
             try:
                 reading = sensor.read()
             except Exception as err:
-                print(f"[main] Alerta: Erro de leitura no I2C ({err}). Ignorando frame...")
+                logger.warning(f"Erro de leitura no I2C ({err}). Ignorando frame...")
                 await asyncio.sleep(loop_period)
                 continue
 
@@ -100,22 +153,55 @@ async def main():
             # --- 6. Transmite aos clientes conectados ---
             await server.broadcast(payload)
 
-            # --- 7. Controle do tempo do loop ---
+            # --- 7. Monitoramento de desempenho e coleta de métricas (1Hz) ---
             elapsed = time.time() - iter_start
+            loop_latencies.append(elapsed)
+            processed_frames += 1
+
+            now_metrics = time.time()
+            if now_metrics - last_metrics_time >= 1.0:
+                dt_metrics = now_metrics - last_metrics_time
+                throughput = processed_frames / dt_metrics
+                avg_latency = sum(loop_latencies) / len(loop_latencies) if loop_latencies else 0.0
+                max_latency = max(loop_latencies) if loop_latencies else 0.0
+                
+                # Fetch system resources
+                cpu_usage = cpu_tracker.get_cpu_usage()
+                mem_usage = get_memory_usage_mb()
+
+                metrics_payload = {
+                    "timestamp": now_metrics,
+                    "cpu_usage_pct": cpu_usage,
+                    "memory_usage_mb": mem_usage,
+                    "avg_latency_ms": round(avg_latency * 1000, 3),
+                    "max_latency_ms": round(max_latency * 1000, 3),
+                    "throughput_fps": round(throughput, 1),
+                    "client_count": len(server.clients),
+                    "queue_backlog_len": 0, # develops doesn't have queue backlog yet, keep 0
+                }
+                
+                await server.broadcast(metrics_payload, event_name="system_metrics")
+
+                # Reset counters
+                last_metrics_time = now_metrics
+                processed_frames = 0
+                loop_latencies.clear()
+
+            # --- 8. Controle do tempo do loop ---
             sleep_time = max(0.0, loop_period - elapsed)
             await asyncio.sleep(sleep_time)
 
     except KeyboardInterrupt:
-        print("\n[main] Encerrando por interrupção do usuário...")
+        logger.info("Encerrando por interrupção do usuário...")
     except Exception as e:
-        print(f"\n[main] Erro fatal: {e}")
+        logger.error(f"Erro fatal: {e}")
     finally:
-        print("[main] Limpando recursos...")
+        logger.info("Limpando recursos...")
         if server:
             await server.stop()
         if sensor:
             sensor.close()
-        print("[main] Sistema encerrado com sucesso.")
+        logger.info("Sistema encerrado com sucesso.")
 
 
 if __name__ == "__main__":

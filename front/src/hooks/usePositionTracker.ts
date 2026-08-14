@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { SensorReading } from "#/interfaces/sensor";
 
 export type TrackedPoint = {
@@ -48,9 +48,7 @@ export function usePositionTracker(latest: SensorReading | null) {
 		const speed = Math.sqrt(v.x ** 2 + v.y ** 2 + v.z ** 2);
 		const a = latest.accel;
 		// Subtract gravity (sensor z ≈ 9.81) to get dynamic acceleration
-		const accelMag = Math.sqrt(
-			a.x ** 2 + a.y ** 2 + (a.z - 9.81) ** 2,
-		);
+		const accelMag = Math.sqrt(a.x ** 2 + a.y ** 2 + (a.z - 9.81) ** 2);
 
 		const point: TrackedPoint = {
 			position: [...newPos],
