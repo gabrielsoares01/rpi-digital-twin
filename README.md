@@ -49,6 +49,29 @@ npm install
 npm run dev
 ```
 
+## Como rodar os testes
+
+### Backend
+
+`requirements-dev.txt` inclui `requirements.txt` (via `-r requirements.txt`) e
+acrescenta `pytest`/`pytest-asyncio`. Essa separação existe para que o
+ambiente de produção na Raspberry Pi (`requirements.txt`) não precise instalar
+dependências de teste.
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest
+```
+
+### Frontend
+
+```bash
+cd front
+npm install
+npm test
+```
+
 ## Licença
 
 Este projeto está licenciado sob os termos do arquivo [LICENSE](LICENSE).
