@@ -1,9 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { Home, LineChart, Box, Cpu, Radio } from "lucide-react";
-import { useSensorSocket } from "#/hooks/useSensorSocket";
+import { Activity, Box, Cpu, Home, LineChart, Radio } from "lucide-react";
+import { useSensorStatus } from "#/hooks/useSensorSocket";
 
 export function Sidebar() {
-	const { status } = useSensorSocket();
+	const status = useSensorStatus();
 
 	const navItems = [
 		{
@@ -21,6 +21,11 @@ export function Sidebar() {
 			label: "Digital Twin",
 			icon: Box,
 		},
+		{
+			to: "/health",
+			label: "Health Monitor",
+			icon: Activity,
+		},
 	];
 
 	return (
@@ -35,7 +40,9 @@ export function Sidebar() {
 						<h1 className="font-bold text-slate-100 tracking-tight text-sm">
 							RPi Twin
 						</h1>
-						<p className="text-[10px] font-mono text-cyan-400">v1.0 telemetry</p>
+						<p className="text-[10px] font-mono text-cyan-400">
+							v1.0 telemetry
+						</p>
 					</div>
 				</div>
 

@@ -20,6 +20,9 @@ A documentação do projeto está organizada em Markdown na pasta [`docs/`](docs
 2. [Objetivos](docs/02-objetivos.md)
 3. [Requisitos do Sistema](docs/03-requisitos.md)
 4. [Arquitetura Proposta](docs/04-arquitetura.md)
+5. [Observabilidade, Logs Estruturados e Painel de Saúde](docs/05-observabilidade-e-logs.md)
+6. [Performance e Estabilidade do Frontend](docs/06-performance-e-estabilidade.md)
+7. [Testes Automatizados e Integração Contínua (CI)](docs/07-testes-automatizados-e-ci.md)
 
 ## Estrutura do repositório
 
@@ -47,6 +50,29 @@ python3 main.py         # inicia o loop de telemetria (WebSocket na porta 8765)
 cd front
 npm install
 npm run dev
+```
+
+## Como rodar os testes
+
+### Backend
+
+`requirements-dev.txt` inclui `requirements.txt` (via `-r requirements.txt`) e
+acrescenta `pytest`/`pytest-asyncio`. Essa separação existe para que o
+ambiente de produção na Raspberry Pi (`requirements.txt`) não precise instalar
+dependências de teste.
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest
+```
+
+### Frontend
+
+```bash
+cd front
+npm install
+npm test
 ```
 
 ## Licença
