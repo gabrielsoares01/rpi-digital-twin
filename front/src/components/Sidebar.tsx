@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Box, Cpu, Home, LineChart, Radio } from "lucide-react";
+import { Activity, Box, Cpu, Home, LineChart, Radio } from "lucide-react";
 import { useSensorStatus } from "#/hooks/useSensorSocket";
 
 export function Sidebar() {
@@ -20,6 +20,11 @@ export function Sidebar() {
 			to: "/twin",
 			label: "Digital Twin",
 			icon: Box,
+		},
+		{
+			to: "/health",
+			label: "Health Monitor",
+			icon: Activity,
 		},
 	];
 

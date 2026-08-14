@@ -4,13 +4,15 @@ import type {
 	SensorReading,
 	SensorSocketSnapshot,
 	SensorSocketStatus,
+	SystemLogEntry,
+	SystemMetrics,
 	Vector3,
 } from "#/interfaces/sensor";
 
 const HISTORY_LIMIT = 50;
 const SENSOR_READING_EVENT = "telemetry";
 const RECONNECTION_DELAY_MS = 1000;
-const RECONNECTION_DELAY_MAX_MS = 30000;
+const RECONNECTION_DELAY_MAX_MS = 10000;
 const BATCH_FLUSH_INTERVAL_MS = 100; // Buffer incoming 50Hz messages and flush to React subscribers at ~10Hz (100ms) to prevent UI/3D stuttering
 
 function isVector3(data: unknown): data is Vector3 {
@@ -111,8 +113,12 @@ class RealSensorSocket implements SensorSocket {
 	private status: SensorSocketStatus = "closed";
 	private latest: SensorReading | null = null;
 	private historyRing = new RingBuffer<SensorReading>(HISTORY_LIMIT);
+	private metrics: SystemMetrics | null = null;
+	private logs: SystemLogEntry[] = [];
 	private pendingBuffer: SensorReading[] = [];
+
 	private flushIntervalId: ReturnType<typeof setInterval> | null = null;
+	private pingIntervalId: ReturnType<typeof setInterval> | null = null;
 	private listeners = new Set<() => void>();
 	private statusListeners = new Set<() => void>();
 	private snapshot: SensorSocketSnapshot;
@@ -124,6 +130,8 @@ class RealSensorSocket implements SensorSocket {
 			status: this.status,
 			latest: this.latest,
 			history: [],
+			metrics: this.metrics,
+			logs: this.logs,
 			lastBatch: [],
 		};
 	}
@@ -136,17 +144,61 @@ class RealSensorSocket implements SensorSocket {
 
 		this.setStatus("connecting");
 		this.socket = io(this.url, {
+			reconnection: true,
+			reconnectionAttempts: 20,
 			reconnectionDelay: RECONNECTION_DELAY_MS,
 			reconnectionDelayMax: RECONNECTION_DELAY_MAX_MS,
+			randomizationFactor: 0.5,
 		});
 
 		this.socket.on("connect", () => {
 			this.setStatus("open");
 			this.startBufferFlusher();
+			this.startPingInterval();
 		});
 
 		this.socket.on(SENSOR_READING_EVENT, (payload: unknown) => {
 			this.handleMessage(payload);
+		});
+
+		this.socket.on("system_metrics", (payload: unknown) => {
+			if (payload && typeof payload === "object") {
+				const rtt = this.metrics?.latency_rtt_ms;
+				this.metrics = {
+					...(payload as SystemMetrics),
+					latency_rtt_ms: rtt,
+				};
+				this.notify([]);
+			}
+		});
+
+		this.socket.on("system_log", (payload: unknown) => {
+			if (payload && typeof payload === "object") {
+				this.logs = [payload as SystemLogEntry, ...this.logs].slice(0, 150);
+				this.notify([]);
+			}
+		});
+
+		this.socket.on("pong_latency", (sentTime: unknown) => {
+			if (typeof sentTime === "number") {
+				const rtt = Date.now() - sentTime;
+				if (this.metrics) {
+					this.metrics = { ...this.metrics, latency_rtt_ms: rtt };
+				} else {
+					this.metrics = {
+						timestamp: Date.now() / 1000,
+						cpu_usage_pct: 0.0,
+						memory_usage_mb: 0.0,
+						avg_latency_ms: 0.0,
+						max_latency_ms: 0.0,
+						throughput_fps: 0.0,
+						client_count: 1,
+						queue_backlog_len: 0,
+						latency_rtt_ms: rtt,
+					};
+				}
+				this.notify([]);
+			}
 		});
 
 		this.socket.on("connect_error", () => {
@@ -155,6 +207,7 @@ class RealSensorSocket implements SensorSocket {
 
 		this.socket.on("disconnect", () => {
 			this.stopBufferFlusher();
+			this.stopPingInterval();
 			this.setStatus("closed");
 		});
 
@@ -168,14 +221,19 @@ class RealSensorSocket implements SensorSocket {
 		if (this.connectionCount > 0) return;
 
 		this.stopBufferFlusher();
+		this.stopPingInterval();
 		this.socket?.disconnect();
 		this.socket = null;
 		this.historyRing.clear();
 		this.latest = null;
+		this.metrics = null;
+		this.logs = [];
 		this.snapshot = {
 			status: "closed",
 			latest: null,
 			history: [],
+			metrics: null,
+			logs: [],
 			lastBatch: [],
 		};
 		this.setStatus("closed");
@@ -242,6 +300,22 @@ class RealSensorSocket implements SensorSocket {
 		this.pendingBuffer.length = 0;
 	}
 
+	private startPingInterval(): void {
+		if (this.pingIntervalId) return;
+		this.pingIntervalId = setInterval(() => {
+			if (this.socket?.connected) {
+				this.socket.emit("ping_latency", Date.now());
+			}
+		}, 2000);
+	}
+
+	private stopPingInterval(): void {
+		if (this.pingIntervalId) {
+			clearInterval(this.pingIntervalId);
+			this.pingIntervalId = null;
+		}
+	}
+
 	private setStatus(status: SensorSocketStatus): void {
 		if (this.status === status) return;
 		this.status = status;
@@ -258,6 +332,8 @@ class RealSensorSocket implements SensorSocket {
 			status: this.status,
 			latest: this.latest,
 			history: this.historyRing.toArray(),
+			metrics: this.metrics,
+			logs: this.logs,
 			lastBatch,
 		};
 		for (const listener of this.listeners) listener();
@@ -268,16 +344,26 @@ class MockSensorSocket implements SensorSocket {
 	private status: SensorSocketStatus = "closed";
 	private latest: SensorReading | null = null;
 	private historyRing = new RingBuffer<SensorReading>(HISTORY_LIMIT);
+	private metrics: SystemMetrics | null = null;
+	private logs: SystemLogEntry[] = [];
 	private listeners = new Set<() => void>();
 	private statusListeners = new Set<() => void>();
+
 	private flushIntervalId: ReturnType<typeof setInterval> | null = null;
-	private snapshot: SensorSocketSnapshot = {
-		status: this.status,
-		latest: null,
-		history: [],
-		lastBatch: [],
-	};
+	private metricsIntervalId: ReturnType<typeof setInterval> | null = null;
+	private snapshot: SensorSocketSnapshot;
 	private connectionCount = 0;
+
+	constructor() {
+		this.snapshot = {
+			status: this.status,
+			latest: this.latest,
+			history: [],
+			metrics: this.metrics,
+			logs: this.logs,
+			lastBatch: [],
+		};
+	}
 
 	connect(): void {
 		this.connectionCount++;
@@ -297,10 +383,14 @@ class MockSensorSocket implements SensorSocket {
 
 		this.stopGenerators();
 		this.latest = null;
+		this.metrics = null;
+		this.logs = [];
 		this.snapshot = {
 			status: "closed",
 			latest: null,
 			history: [],
+			metrics: null,
+			logs: [],
 			lastBatch: [],
 		};
 		this.setStatus("closed");
@@ -326,11 +416,18 @@ class MockSensorSocket implements SensorSocket {
 
 	private startGenerators(): void {
 		if (this.flushIntervalId) return;
-		// 10Hz flush interval (every 100ms) matching RealSensorSocket buffer flusher.
-		// Generates and flushes batches directly to optimize CPU.
+
+		// Telemetry flusher (10Hz)
 		this.flushIntervalId = setInterval(
 			() => this.flushBuffer(),
 			BATCH_FLUSH_INTERVAL_MS,
+		);
+
+		// Mock system metrics and structured logs (1Hz)
+		this.emitMockMetricsAndLogs();
+		this.metricsIntervalId = setInterval(
+			() => this.emitMockMetricsAndLogs(),
+			1000,
 		);
 	}
 
@@ -338,6 +435,10 @@ class MockSensorSocket implements SensorSocket {
 		if (this.flushIntervalId) {
 			clearInterval(this.flushIntervalId);
 			this.flushIntervalId = null;
+		}
+		if (this.metricsIntervalId) {
+			clearInterval(this.metricsIntervalId);
+			this.metricsIntervalId = null;
 		}
 		this.historyRing.clear();
 	}
@@ -386,6 +487,67 @@ class MockSensorSocket implements SensorSocket {
 		this.notify(batch);
 	}
 
+	private emitMockMetricsAndLogs(): void {
+		// Mock CPU usage 2% - 12%, Memory 15MB - 18MB, loop latency 0.3ms - 0.9ms
+		const randomVal = (min: number, max: number) =>
+			Number((Math.random() * (max - min) + min).toFixed(2));
+
+		this.metrics = {
+			timestamp: Date.now() / 1000,
+			cpu_usage_pct: randomVal(2, 12),
+			memory_usage_mb: randomVal(15.2, 17.8),
+			avg_latency_ms: randomVal(0.3, 0.9),
+			max_latency_ms: randomVal(1.1, 3.5),
+			throughput_fps: 50.0,
+			client_count: 1,
+			queue_backlog_len: 0,
+			latency_rtt_ms: Math.floor(randomVal(3, 15)),
+		};
+
+		// Mock structured logs
+		const mockLogMessages = [
+			{
+				level: "INFO",
+				name: "main",
+				msg: "Telemetry stream active and healthy",
+			},
+			{
+				level: "INFO",
+				name: "sensor_reader",
+				msg: "I2C read successful, packet validation OK",
+			},
+			{
+				level: "INFO",
+				name: "websocket",
+				msg: "Broadcasted metrics payload to all active listeners",
+			},
+			{
+				level: "WARNING",
+				name: "main",
+				msg: "Temporary loop overhead fluctuation detected",
+			},
+		];
+
+		if (Math.random() > 0.4) {
+			const selectLog =
+				mockLogMessages[Math.floor(Math.random() * mockLogMessages.length)];
+			const mockLog: SystemLogEntry = {
+				timestamp: new Date().toISOString(),
+				level: selectLog.level,
+				name: selectLog.name,
+				message: selectLog.msg,
+				filename:
+					selectLog.name === "main" ? "main.py" : `${selectLog.name}.py`,
+				lineno: Math.floor(Math.random() * 80) + 10,
+				correlation_id:
+					selectLog.level === "WARNING" ? undefined : "mock-session-id",
+			};
+			this.logs = [mockLog, ...this.logs].slice(0, 150);
+		}
+
+		this.notify([]);
+	}
+
 	private setStatus(status: SensorSocketStatus): void {
 		if (this.status === status) return;
 		this.status = status;
@@ -402,6 +564,8 @@ class MockSensorSocket implements SensorSocket {
 			status: this.status,
 			latest: this.latest,
 			history: this.historyRing.toArray(),
+			metrics: this.metrics,
+			logs: this.logs,
 			lastBatch,
 		};
 		for (const listener of this.listeners) listener();

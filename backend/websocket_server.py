@@ -20,8 +20,10 @@ JSON enviado para os clientes:
 
 import asyncio
 import socketio
+import logging
 from aiohttp import web
 
+logger = logging.getLogger("websocket")
 
 class WebSocketServer:
     def __init__(self, host="0.0.0.0", port=8765):
@@ -46,12 +48,23 @@ class WebSocketServer:
         @self.sio.event
         async def connect(sid, environ):
             self.clients.add(sid)
-            print(f"[SocketIOServer] Cliente conectado: {sid} (total: {len(self.clients)})")
+            logger.info(
+                f"Cliente conectado: {sid} (total: {len(self.clients)})",
+                extra={"correlation_id": sid}
+            )
 
         @self.sio.event
         async def disconnect(sid):
             self.clients.discard(sid)
-            print(f"[SocketIOServer] Cliente desconectado: {sid} (total: {len(self.clients)})")
+            logger.info(
+                f"Cliente desconectado: {sid} (total: {len(self.clients)})",
+                extra={"correlation_id": sid}
+            )
+
+        @self.sio.event
+        async def ping_latency(sid, sent_time):
+            # Reply to the client with the received timestamp to compute RTT
+            await self.sio.emit("pong_latency", sent_time, to=sid)
 
     async def start(self):
         """Sobe o servidor HTTP + Socket.IO na porta especificada."""
@@ -59,11 +72,11 @@ class WebSocketServer:
         await self.runner.setup()
         self.site = web.TCPSite(self.runner, self.host, self.port)
         await self.site.start()
-        print(f"[SocketIOServer] Servidor rodando em http://{self.host}:{self.port}")
+        logger.info(f"Servidor rodando em http://{self.host}:{self.port}")
 
-    async def broadcast(self, data: dict, event_name: str = "telemetry"):
+    async def broadcast(self, data, event_name: str = "telemetry"):
         """
-        Envia o dicionário `data` via evento Socket.IO para todos os clientes conectados.
+        Envia os dados via evento Socket.IO para todos os clientes conectados.
         """
         if not self.clients:
             return  # ninguém conectado, não faz nada
@@ -74,7 +87,7 @@ class WebSocketServer:
         """Encerra o servidor web aiohttp."""
         if self.runner is not None:
             await self.runner.cleanup()
-            print("[SocketIOServer] Servidor encerrado.")
+            logger.info("Servidor encerrado.")
 
 
 # ----------------------------------------------------------------------
