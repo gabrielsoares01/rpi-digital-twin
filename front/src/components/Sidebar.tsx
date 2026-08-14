@@ -1,9 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { Activity, Box, Cpu, Home, LineChart, Radio } from "lucide-react";
-import { useSensorSocket } from "#/hooks/useSensorSocket";
+import { useSensorStatus } from "#/hooks/useSensorSocket";
 
 export function Sidebar() {
-	const { status } = useSensorSocket();
+	const status = useSensorStatus();
 
 	const navItems = [
 		{

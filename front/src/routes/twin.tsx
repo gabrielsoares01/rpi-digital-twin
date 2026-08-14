@@ -1,17 +1,30 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { usePositionTracker } from "#/hooks/usePositionTracker";
-import { useSensorSocket } from "#/hooks/useSensorSocket";
+import {
+	useLatestBatch,
+	useLatestTelemetry,
+	useSensorStatus,
+} from "#/hooks/useSensorSocket";
 import type { SensorSocketStatus } from "#/interfaces/sensor";
+import { getSensorSocket } from "#/services/websocket";
 
 const TwinScene = lazy(() => import("#/components/TwinScene"));
 
 export const Route = createFileRoute("/twin")({ component: TwinPage });
 
 function TwinPage() {
-	const { status, latest } = useSensorSocket();
-	const { currentPosition, currentOrientation, trail, reset } =
-		usePositionTracker(latest);
+	useEffect(() => {
+		const socket = getSensorSocket();
+		socket.connect();
+		return () => socket.disconnect();
+	}, []);
+
+	const status = useSensorStatus();
+	const latest = useLatestTelemetry();
+	const batch = useLatestBatch();
+	const { currentPosition, currentOrientation, trailRef, trailVersion, reset } =
+		usePositionTracker(batch);
 	const [followCamera, setFollowCamera] = useState(true);
 	const [lockCenter, setLockCenter] = useState(false);
 
@@ -44,7 +57,8 @@ function TwinPage() {
 				<TwinScene
 					currentPosition={currentPosition}
 					currentOrientation={currentOrientation}
-					trail={trail}
+					trailRef={trailRef}
+					trailVersion={trailVersion}
 					latestAccelMagnitude={latestAccelMag}
 					followCamera={followCamera}
 					lockCenter={lockCenter}

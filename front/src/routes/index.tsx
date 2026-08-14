@@ -11,12 +11,21 @@ import {
 	Radio,
 	Zap,
 } from "lucide-react";
-import { useSensorSocket } from "#/hooks/useSensorSocket";
+import { useEffect } from "react";
+import { useLatestTelemetry, useSensorStatus } from "#/hooks/useSensorSocket";
+import { getSensorSocket } from "#/services/websocket";
 
 export const Route = createFileRoute("/")({ component: Home });
 
 function Home() {
-	const { status, latest } = useSensorSocket();
+	useEffect(() => {
+		const socket = getSensorSocket();
+		socket.connect();
+		return () => socket.disconnect();
+	}, []);
+
+	const status = useSensorStatus();
+	const latest = useLatestTelemetry();
 
 	return (
 		<div className="min-h-screen bg-slate-950 text-slate-100 relative overflow-hidden">

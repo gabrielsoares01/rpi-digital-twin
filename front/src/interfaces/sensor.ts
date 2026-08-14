@@ -48,4 +48,8 @@ export type SensorSocketSnapshot = {
 	history: SensorReading[];
 	metrics: SystemMetrics | null;
 	logs: SystemLogEntry[];
+	/** All readings flushed in the most recent batch, in chronological order.
+	 *  usePositionTracker iterates this to integrate each frame individually,
+	 *  preventing position jumps caused by skipped frames during render stalls. */
+	lastBatch: SensorReading[];
 };

@@ -38,17 +38,20 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 			<body className="bg-slate-950 text-slate-100 min-h-screen antialiased flex selection:bg-cyan-500 selection:text-white">
 				<Sidebar />
 				<main className="flex-1 min-w-0 pl-16 min-h-screen">{children}</main>
-				<TanStackDevtools
-					config={{
-						position: "bottom-right",
-					}}
-					plugins={[
-						{
-							name: "Tanstack Router",
-							render: <TanStackRouterDevtoolsPanel />,
-						},
-					]}
-				/>
+				{import.meta.env.DEV &&
+					import.meta.env.VITE_ENABLE_DEVTOOLS === "true" && (
+						<TanStackDevtools
+							config={{
+								position: "bottom-right",
+							}}
+							plugins={[
+								{
+									name: "Tanstack Router",
+									render: <TanStackRouterDevtoolsPanel />,
+								},
+							]}
+						/>
+					)}
 				<Scripts />
 			</body>
 		</html>

@@ -13,72 +13,91 @@ const SCALE = 100; // m → cm
 const DEG2RAD = Math.PI / 180;
 const MAX_DT = 5; // ignore gaps longer than 5s
 
-export function usePositionTracker(latest: SensorReading | null) {
+export function usePositionTracker(batch: SensorReading[]) {
 	const posRef = useRef<[number, number, number]>([0, 0, 0]);
+	// Stable ref to the trail array — mutated in-place, never replaced
 	const trailRef = useRef<TrackedPoint[]>([]);
 	const prevTsRef = useRef<number | null>(null);
 
-	const [state, setState] = useState({
+	// Scalar state for position + orientation (cheap — 6 numbers, no arrays)
+	const [positionState, setPositionState] = useState({
 		currentPosition: [0, 0, 0] as [number, number, number],
 		currentOrientation: [0, 0, 0] as [number, number, number],
-		trail: [] as TrackedPoint[],
 	});
+	// Integer version counter drives TrailPath rerenders without copying the trail array
+	const [trailVersion, setTrailVersion] = useState(0);
 
 	useEffect(() => {
-		if (!latest) return;
+		if (!batch || batch.length === 0) return;
 
-		const prevTs = prevTsRef.current;
-		prevTsRef.current = latest.timestamp;
+		for (let i = 0; i < batch.length; i++) {
+			const reading = batch[i];
+			const prevTs = prevTsRef.current;
+			prevTsRef.current = reading.timestamp;
 
-		if (prevTs === null) return;
+			if (prevTs === null) continue;
 
-		const dt = latest.timestamp - prevTs;
-		if (dt <= 0 || dt > MAX_DT) return;
+			const dt = reading.timestamp - prevTs;
+			if (dt <= 0 || dt > MAX_DT) continue;
 
-		const v = latest.linear_velocity;
+			const v = reading.linear_velocity;
 
-		// Integrate velocity → position (sensor Z-up → Three.js Y-up)
-		const newPos: [number, number, number] = [
-			posRef.current[0] + v.x * dt * SCALE,
-			posRef.current[1] + v.z * dt * SCALE, // sensor z → three y (up)
-			posRef.current[2] + v.y * dt * SCALE, // sensor y → three z (forward)
-		];
-		posRef.current = newPos;
+			// Integrate velocity → position (sensor Z-up → Three.js Y-up)
+			const newPos: [number, number, number] = [
+				posRef.current[0] + v.x * dt * SCALE,
+				posRef.current[1] + v.z * dt * SCALE, // sensor z → three y (up)
+				posRef.current[2] + v.y * dt * SCALE, // sensor y → three z (forward)
+			];
+			posRef.current = newPos;
 
-		const speed = Math.sqrt(v.x ** 2 + v.y ** 2 + v.z ** 2);
-		const a = latest.accel;
-		// Subtract gravity (sensor z ≈ 9.81) to get dynamic acceleration
-		const accelMag = Math.sqrt(a.x ** 2 + a.y ** 2 + (a.z - 9.81) ** 2);
+			const speed = Math.sqrt(v.x ** 2 + v.y ** 2 + v.z ** 2);
+			const a = reading.accel;
+			// Subtract gravity (sensor z ≈ 9.81) to get dynamic acceleration
+			const accelMag = Math.sqrt(a.x ** 2 + a.y ** 2 + (a.z - 9.81) ** 2);
 
-		const point: TrackedPoint = {
-			position: [...newPos],
-			speed,
-			accelMagnitude: accelMag,
-			timestamp: latest.timestamp,
-		};
-		trailRef.current = [...trailRef.current, point].slice(-TRAIL_LIMIT);
+			const point: TrackedPoint = {
+				position: newPos,
+				speed,
+				accelMagnitude: accelMag,
+				timestamp: reading.timestamp,
+			};
+			// Mutate the trail array in-place — no new array allocated
+			if (trailRef.current.length >= TRAIL_LIMIT) {
+				trailRef.current.shift();
+			}
+			trailRef.current.push(point);
+		}
 
-		setState({
-			currentPosition: [...newPos],
+		// Update position/orientation using the latest reading of the batch
+		const latestReading = batch[batch.length - 1];
+		setPositionState({
+			currentPosition: posRef.current,
 			currentOrientation: [
-				latest.orientation.pitch * DEG2RAD,
-				latest.orientation.yaw * DEG2RAD,
-				latest.orientation.roll * DEG2RAD,
+				latestReading.orientation.pitch * DEG2RAD,
+				latestReading.orientation.yaw * DEG2RAD,
+				latestReading.orientation.roll * DEG2RAD,
 			],
-			trail: [...trailRef.current],
 		});
-	}, [latest]);
+		// Bump version to signal TrailPath that data changed, without copying the array
+		setTrailVersion((v) => v + 1);
+	}, [batch]);
 
 	const reset = useCallback(() => {
 		posRef.current = [0, 0, 0];
 		trailRef.current = [];
 		prevTsRef.current = null;
-		setState({
+		setPositionState({
 			currentPosition: [0, 0, 0],
 			currentOrientation: [0, 0, 0],
-			trail: [],
 		});
+		setTrailVersion((v) => v + 1);
 	}, []);
 
-	return { ...state, reset };
+	return {
+		currentPosition: positionState.currentPosition,
+		currentOrientation: positionState.currentOrientation,
+		trailRef,
+		trailVersion,
+		reset,
+	};
 }
