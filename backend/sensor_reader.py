@@ -27,6 +27,7 @@ Uso típico:
 import time
 import struct
 import smbus2
+import logging
 
 # Endereço padrão do MPU6050 no barramento I2C
 MPU6050_ADDR = 0x68
@@ -41,6 +42,8 @@ ACCEL_SCALE = 16384.0   # LSB/g
 GYRO_SCALE = 131.0      # LSB/(graus/s)
 
 GRAVITY = 9.80665       # m/s^2
+
+logger = logging.getLogger("sensor_reader")
 
 
 class SensorReader:
@@ -99,8 +102,9 @@ class SensorReader:
         superfície estável. Calcula a média de várias leituras e usa
         isso como offset a ser subtraído das leituras futuras.
         """
-        print(f"[SensorReader] Calibrando com {samples} amostras. "
-              f"Mantenha o robô parado e nivelado...")
+        logger.info(
+            f"Calibrando com {samples} amostras. Mantenha o robô parado e nivelado..."
+        )
 
         sum_ax = sum_ay = sum_az = 0.0
         sum_gx = sum_gy = sum_gz = 0.0
@@ -124,9 +128,9 @@ class SensorReader:
         self.gyro_offset["y"] = sum_gy / samples
         self.gyro_offset["z"] = sum_gz / samples
 
-        print("[SensorReader] Calibração concluída.")
-        print(f"  accel_offset = {self.accel_offset}")
-        print(f"  gyro_offset  = {self.gyro_offset}")
+        logger.info("Calibração concluída.")
+        logger.info(f"  accel_offset = {self.accel_offset}")
+        logger.info(f"  gyro_offset  = {self.gyro_offset}")
 
     # ------------------------------------------------------------------
     # Leitura pública (já calibrada e convertida para SI)
