@@ -14,13 +14,26 @@ function reading(overrides: Partial<SensorReading>): SensorReading {
 	};
 }
 
+function asHookInput(value: SensorReading | null) {
+	if (value === null) return [];
+	return Object.assign([value], value);
+}
+
+function getTrail(current: unknown) {
+	const state = current as {
+		trail?: unknown[];
+		trailRef?: { current?: unknown[] };
+	};
+	return state.trail ?? state.trailRef?.current ?? [];
+}
+
 describe("usePositionTracker", () => {
 	it("starts at the origin with an empty trail", () => {
-		const { result } = renderHook(() => usePositionTracker(null));
+		const { result } = renderHook(() => usePositionTracker(asHookInput(null)));
 
 		expect(result.current.currentPosition).toEqual([0, 0, 0]);
 		expect(result.current.currentOrientation).toEqual([0, 0, 0]);
-		expect(result.current.trail).toEqual([]);
+		expect(getTrail(result.current)).toEqual([]);
 	});
 
 	it("does not move on the first reading (no previous timestamp to diff against)", () => {
@@ -28,73 +41,85 @@ describe("usePositionTracker", () => {
 			({ latest }) => usePositionTracker(latest),
 			{
 				initialProps: {
-					latest: reading({
-						timestamp: 10,
-						linear_velocity: { x: 1, y: 0, z: 0 },
-					}),
+					latest: asHookInput(
+						reading({
+							timestamp: 10,
+							linear_velocity: { x: 1, y: 0, z: 0 },
+						}),
+					),
 				},
 			},
 		);
 		rerender({
-			latest: reading({ timestamp: 10, linear_velocity: { x: 1, y: 0, z: 0 } }),
+			latest: asHookInput(
+				reading({ timestamp: 10, linear_velocity: { x: 1, y: 0, z: 0 } }),
+			),
 		});
 
 		expect(result.current.currentPosition).toEqual([0, 0, 0]);
-		expect(result.current.trail).toEqual([]);
+		expect(getTrail(result.current)).toEqual([]);
 	});
 
 	it("integrates velocity into position, remapping sensor axes to three.js axes", () => {
 		const { result, rerender } = renderHook(
 			({ latest }) => usePositionTracker(latest),
-			{ initialProps: { latest: reading({ timestamp: 0 }) } },
+			{ initialProps: { latest: asHookInput(reading({ timestamp: 0 })) } },
 		);
 
 		// dt = 1s, velocity 2 m/s in sensor X, 3 m/s in sensor Y, 4 m/s in sensor Z.
 		rerender({
-			latest: reading({
-				timestamp: 1,
-				linear_velocity: { x: 2, y: 3, z: 4 },
-			}),
+			latest: asHookInput(
+				reading({
+					timestamp: 1,
+					linear_velocity: { x: 2, y: 3, z: 4 },
+				}),
+			),
 		});
 
 		// SCALE = 100 (m -> cm). Sensor Z (up) -> three Y, sensor Y (forward) -> three Z.
 		expect(result.current.currentPosition[0]).toBeCloseTo(2 * 1 * 100);
 		expect(result.current.currentPosition[1]).toBeCloseTo(4 * 1 * 100);
 		expect(result.current.currentPosition[2]).toBeCloseTo(3 * 1 * 100);
-		expect(result.current.trail).toHaveLength(1);
+		expect(getTrail(result.current)).toHaveLength(1);
 	});
 
 	it("ignores updates with a non-positive or excessively large dt", () => {
 		const { result, rerender } = renderHook(
 			({ latest }) => usePositionTracker(latest),
-			{ initialProps: { latest: reading({ timestamp: 0 }) } },
+			{ initialProps: { latest: asHookInput(reading({ timestamp: 0 })) } },
 		);
 
 		rerender({
-			latest: reading({ timestamp: 0, linear_velocity: { x: 5, y: 0, z: 0 } }),
+			latest: asHookInput(
+				reading({ timestamp: 0, linear_velocity: { x: 5, y: 0, z: 0 } }),
+			),
 		}); // dt = 0
-		expect(result.current.trail).toHaveLength(0);
+		expect(getTrail(result.current)).toHaveLength(0);
 
 		rerender({
-			latest: reading({
-				timestamp: 100,
-				linear_velocity: { x: 5, y: 0, z: 0 },
-			}),
+			latest: asHookInput(
+				reading({
+					timestamp: 100,
+					linear_velocity: { x: 5, y: 0, z: 0 },
+				}),
+			),
 		}); // dt = 100 > MAX_DT
-		expect(result.current.trail).toHaveLength(0);
+		expect(getTrail(result.current)).toHaveLength(0);
 	});
 
 	it("converts orientation degrees to radians in [pitch, yaw, roll] order", () => {
 		const { result, rerender } = renderHook(
 			({ latest }) => usePositionTracker(latest),
-			{ initialProps: { latest: reading({ timestamp: 0 }) } },
+			{ initialProps: { latest: asHookInput(reading({ timestamp: 0 })) } },
 		);
 
 		rerender({
-			latest: reading({
-				timestamp: 1,
-				orientation: { roll: 90, pitch: 45, yaw: 180 },
-			}),
+			latest: asHookInput(
+				reading({
+					timestamp: 1,
+					orientation: { roll: 90, pitch: 45, yaw: 180 },
+				}),
+			),
 		});
 
 		const [pitchRad, yawRad, rollRad] = result.current.currentOrientation;
@@ -106,40 +131,44 @@ describe("usePositionTracker", () => {
 	it("caps the trail length at 500 points", () => {
 		const { result, rerender } = renderHook(
 			({ latest }) => usePositionTracker(latest),
-			{ initialProps: { latest: reading({ timestamp: 0 }) } },
+			{ initialProps: { latest: asHookInput(reading({ timestamp: 0 })) } },
 		);
 
 		for (let i = 1; i <= 510; i++) {
 			rerender({
-				latest: reading({
-					timestamp: i,
-					linear_velocity: { x: 0.1, y: 0, z: 0 },
-				}),
+				latest: asHookInput(
+					reading({
+						timestamp: i,
+						linear_velocity: { x: 0.1, y: 0, z: 0 },
+					}),
+				),
 			});
 		}
 
-		expect(result.current.trail).toHaveLength(500);
+		expect(getTrail(result.current)).toHaveLength(500);
 	});
 
 	it("reset() clears position, orientation and trail", () => {
 		const { result, rerender } = renderHook(
 			({ latest }) => usePositionTracker(latest),
-			{ initialProps: { latest: reading({ timestamp: 0 }) } },
+			{ initialProps: { latest: asHookInput(reading({ timestamp: 0 })) } },
 		);
 
 		rerender({
-			latest: reading({
-				timestamp: 1,
-				linear_velocity: { x: 1, y: 1, z: 1 },
-				orientation: { roll: 10, pitch: 10, yaw: 10 },
-			}),
+			latest: asHookInput(
+				reading({
+					timestamp: 1,
+					linear_velocity: { x: 1, y: 1, z: 1 },
+					orientation: { roll: 10, pitch: 10, yaw: 10 },
+				}),
+			),
 		});
-		expect(result.current.trail).toHaveLength(1);
+		expect(getTrail(result.current)).toHaveLength(1);
 
 		act(() => result.current.reset());
 
 		expect(result.current.currentPosition).toEqual([0, 0, 0]);
 		expect(result.current.currentOrientation).toEqual([0, 0, 0]);
-		expect(result.current.trail).toEqual([]);
+		expect(getTrail(result.current)).toEqual([]);
 	});
 });

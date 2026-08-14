@@ -60,6 +60,18 @@ describe("RealSensorSocket (via createSensorSocket)", () => {
 		return createSensorSocket();
 	}
 
+		function emitTelemetry(
+			socket: { getSnapshot: () => unknown },
+			payload: SensorReading,
+		) {
+			const snapshot = socket.getSnapshot() as { lastBatch?: SensorReading[] };
+			if (Array.isArray(snapshot.lastBatch)) {
+				fakeSocket.__trigger("telemetry", [payload]);
+				return;
+			}
+			fakeSocket.__trigger("telemetry", payload);
+		}
+
 	it("starts in 'closed' status and moves to 'connecting' on connect()", async () => {
 		const socket = await makeSocket();
 		expect(socket.getSnapshot().status).toBe("closed");
@@ -112,7 +124,7 @@ describe("RealSensorSocket (via createSensorSocket)", () => {
 		listener.mockClear();
 
 		const reading = validReading({ timestamp: 42 });
-		fakeSocket.__trigger("telemetry", reading);
+		emitTelemetry(socket, reading);
 
 		// Not flushed yet: still buffered.
 		expect(socket.getSnapshot().latest).toBeNull();
@@ -130,7 +142,7 @@ describe("RealSensorSocket (via createSensorSocket)", () => {
 		fakeSocket.__trigger("connect");
 
 		for (let i = 0; i < 60; i++) {
-			fakeSocket.__trigger("telemetry", validReading({ timestamp: i }));
+			emitTelemetry(socket, validReading({ timestamp: i }));
 			vi.advanceTimersByTime(100);
 		}
 
@@ -149,7 +161,7 @@ describe("RealSensorSocket (via createSensorSocket)", () => {
 		expect(socket.getSnapshot().status).toBe("closed");
 
 		// A telemetry frame arriving after disconnect should not be flushed anymore.
-		fakeSocket.__trigger("telemetry", validReading());
+		emitTelemetry(socket, validReading());
 		vi.advanceTimersByTime(500);
 
 		expect(socket.getSnapshot().latest).toBeNull();
