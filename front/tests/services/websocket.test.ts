@@ -56,7 +56,7 @@ describe("RealSensorSocket (via createSensorSocket)", () => {
 	});
 
 	async function makeSocket() {
-		const { createSensorSocket } = await import("./websocket");
+		const { createSensorSocket } = await import("#/services/websocket");
 		return createSensorSocket();
 	}
 

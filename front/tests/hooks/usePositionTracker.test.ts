@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { SensorReading } from "#/interfaces/sensor";
-import { usePositionTracker } from "./usePositionTracker";
+import { usePositionTracker } from "#/hooks/usePositionTracker";
 
 function reading(overrides: Partial<SensorReading>): SensorReading {
 	return {
