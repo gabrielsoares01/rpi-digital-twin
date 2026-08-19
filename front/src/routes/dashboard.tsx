@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AccelerometerGauges } from "#/components/AccelerometerGauges";
 import {
 	useLatestTelemetry,
 	useSensorHistory,
@@ -105,11 +106,7 @@ function Dashboard() {
 							history={history}
 							field="gyro"
 						/>
-						<VectorChart
-							title="Aceleração (m/s²)"
-							history={history}
-							field="accel"
-						/>
+						<AccelerometerGauges accel={latest.accel} />
 						<VectorChart
 							title="Velocidade linear (m/s)"
 							history={history}
