@@ -167,7 +167,7 @@ function TwinPage() {
 								background: "linear-gradient(to right, #1e40af, #ef4444)",
 							}}
 						/>
-						<span className="text-white/50 text-xs">High</span>
+						<span className="text-white/50 text-xs">High (15 m/s²)</span>
 					</div>
 				</div>
 			</div>
