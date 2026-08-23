@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useState } from "react";
+import { AccidentAlertModal } from "#/components/AccidentAlertModal";
+import { useAccidentDetector } from "#/hooks/useAccidentDetector";
 import { usePositionTracker } from "#/hooks/usePositionTracker";
 import {
 	useLatestBatch,
@@ -25,6 +27,9 @@ function TwinPage() {
 	const batch = useLatestBatch();
 	const { currentPosition, currentOrientation, trailRef, trailVersion, reset } =
 		usePositionTracker(batch);
+	const { currentAlert, dismissAlert, triggerSimulation } =
+		useAccidentDetector(batch);
+
 	const [followCamera, setFollowCamera] = useState(true);
 	const [lockCenter, setLockCenter] = useState(false);
 
@@ -65,6 +70,15 @@ function TwinPage() {
 				/>
 			</Suspense>
 
+			{/* ── Emergency Alert Pop-up Modal ───────────────────────── */}
+			{currentAlert && (
+				<AccidentAlertModal
+					alert={currentAlert}
+					onDismiss={dismissAlert}
+					onReSimulate={triggerSimulation}
+				/>
+			)}
+
 			{/* ── HUD Overlay ─────────────────────────────────────── */}
 
 			{/* Top bar */}
@@ -101,11 +115,20 @@ function TwinPage() {
 				<div className="flex flex-col gap-2 pointer-events-auto">
 					<button
 						type="button"
+						onClick={triggerSimulation}
+						className="backdrop-blur-md bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 rounded-lg px-4 py-2 text-rose-300 text-sm font-semibold transition-colors cursor-pointer flex items-center gap-1.5 shadow-lg shadow-rose-950/30"
+					>
+						⚠️ Simular Acidente
+					</button>
+
+					<button
+						type="button"
 						onClick={reset}
 						className="backdrop-blur-md bg-black/40 rounded-lg px-4 py-2 border border-white/10 text-white text-sm font-medium hover:bg-white/10 active:bg-white/20 transition-colors cursor-pointer"
 					>
 						↺ Reset Trail
 					</button>
+
 					<button
 						type="button"
 						onClick={handleToggleLockCenter}
@@ -117,6 +140,7 @@ function TwinPage() {
 					>
 						🎯 {lockCenter ? "Center Locked" : "Lock Center"}
 					</button>
+
 					<button
 						type="button"
 						onClick={() => setFollowCamera((f) => !f)}
@@ -167,7 +191,7 @@ function TwinPage() {
 								background: "linear-gradient(to right, #1e40af, #ef4444)",
 							}}
 						/>
-						<span className="text-white/50 text-xs">High</span>
+						<span className="text-white/50 text-xs">High (15 m/s²)</span>
 					</div>
 				</div>
 			</div>

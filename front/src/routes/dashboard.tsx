@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AccelerometerGauges } from "#/components/AccelerometerGauges";
 import {
 	useLatestTelemetry,
 	useSensorHistory,
@@ -11,6 +12,7 @@ import type {
 	SensorSocketStatus,
 	Vector3,
 } from "#/interfaces/sensor";
+import { downloadCsv, sensorReadingsToCsv } from "#/lib/csv";
 import { getSensorSocket } from "#/services/websocket";
 
 export const Route = createFileRoute("/dashboard")({ component: Dashboard });
@@ -56,13 +58,29 @@ function Dashboard() {
 	const latest = useLatestTelemetry();
 	const history = useSensorHistory();
 
+	const handleExportCsv = useCallback(() => {
+		const csv = sensorReadingsToCsv(history);
+		downloadCsv(csv, `telemetry_${Date.now()}.csv`);
+	}, [history]);
+
 	return (
 		<div className="p-8 space-y-6 min-h-screen bg-slate-950 text-slate-100">
 			<div className="flex items-center justify-between">
 				<h1 className="text-4xl font-extrabold tracking-tight text-white leading-tight">
 					Dashboard Telemetria
 				</h1>
-				<StatusBadge status={status} />
+				<div className="flex items-center gap-3">
+					{history.length > 0 && (
+						<button
+							type="button"
+							onClick={handleExportCsv}
+							className="px-3.5 py-1.5 rounded-full border border-white/10 bg-slate-900/40 text-xs font-mono font-medium text-slate-200 hover:bg-slate-800/60 transition-colors"
+						>
+							Exportar CSV
+						</button>
+					)}
+					<StatusBadge status={status} />
+				</div>
 			</div>
 
 			{!latest ? (
@@ -88,11 +106,7 @@ function Dashboard() {
 							history={history}
 							field="gyro"
 						/>
-						<VectorChart
-							title="Aceleração (m/s²)"
-							history={history}
-							field="accel"
-						/>
+						<AccelerometerGauges accel={latest.accel} />
 						<VectorChart
 							title="Velocidade linear (m/s)"
 							history={history}
