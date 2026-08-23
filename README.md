@@ -12,6 +12,28 @@ Digital (Digital Twin) em tempo real, inspirado em sistemas como eCall e Crash
 Detection, para identificar padrões cinemáticos característicos de acidentes de
 motocicleta (impacto, queda de velocidade e inclinação anômala).
 
+### Interface e Gêmeo Digital
+
+Abaixo estão algumas capturas de tela da interface web do projeto:
+
+<div style="text-align: center; width: 50%; margin-bottom: 20px;">
+  <strong>Página Inicial</strong>
+  <br />
+  <img src="assets/home.png" alt="Página Inicial" style="width: 100%;" />
+</div>
+
+<div style="text-align: center; width: 50%; margin-bottom: 20px;">
+  <strong>Dashboard de Telemetria</strong>
+  <br />
+  <img src="assets/dashboard.png" alt="Dashboard de Telemetria" style="width: 100%;" />
+</div>
+
+<div style="text-align: center; width: 50%; margin-bottom: 20px;">
+  <strong>Gêmeo Digital 3D</strong>
+  <br />
+  <img src="assets/digital_twin.png" alt="Gêmeo Digital 3D" style="width: 100%;" />
+</div>
+
 ## Documentação
 
 A documentação do projeto está organizada em Markdown na pasta [`docs/`](docs):
