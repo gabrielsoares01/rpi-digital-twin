@@ -13,6 +13,8 @@ const LOW_COLOR = new THREE.Color("#1e40af");
 const HIGH_COLOR = new THREE.Color("#ef4444");
 const EDGE_COLOR = "#38bdf8";
 const BOX_HEIGHT = 7;
+/** Dynamic acceleration threshold (m/s²) for dangerous/high accel glow (red) */
+const MAX_ACCEL = 15;
 
 export const RobotTwin = memo(function RobotTwin({
 	position,
@@ -41,7 +43,7 @@ export const RobotTwin = memo(function RobotTwin({
 		meshRef.current.quaternion.slerp(targetQuat.current, 0.15);
 	});
 
-	const glowIntensity = Math.min(accelMagnitude / 2, 1);
+	const glowIntensity = Math.min(accelMagnitude / MAX_ACCEL, 1);
 
 	const emissiveColor = useMemo(() => {
 		return new THREE.Color().lerpColors(LOW_COLOR, HIGH_COLOR, glowIntensity);
